@@ -183,6 +183,37 @@ Sentence-Transformers, Notion, Cloudflare
     ]
 
 
+def test_grounding_keeps_only_projects_with_cv_project_headings():
+    cv_text = """PROJECTS
+### Machine Learning - Heart Failure Detection
+Data preprocessing and classification project.
+### Database Management
+MySQL, PostgreSQL, Oracle
+### Web Technology - Smart City Management System
+Built a web application with PHP and JavaScript.
+### Tools
+PyTorch, TensorFlow, GitHub
+Strengths & Interests
+Strong command of English.
+"""
+    ext = ProfileExtraction.model_validate({
+        "projects": [
+            {"name": "Machine Learning - Heart Failure Detection"},
+            {"name": "Database Management"},
+            {"name": "Web Technology - Smart City Management System"},
+            {"name": "Tools"},
+            {"name": "Strong command of English"},
+        ],
+    })
+
+    grounded = pipeline.ground_extraction(ext, cv_text)
+
+    assert [project.name for project in grounded.projects] == [
+        "Machine Learning - Heart Failure Detection",
+        "Web Technology - Smart City Management System",
+    ]
+
+
 def test_structured_profile_update_keeps_preferences(client):
     headers, _ = register(client)
     payload = {

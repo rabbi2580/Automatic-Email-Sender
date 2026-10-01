@@ -71,6 +71,10 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
     education_hay = section_text("education")
     project_hay = section_text("projects", "research")
     certification_hay = section_text("certifications")
+    parsed_project_names = {
+        re.sub(r"[^a-z0-9]+", "", project.name.lower())
+        for project in parse_cv_text(text).projects
+    }
     def valid_skill(name: str) -> bool:
         candidate = name.strip()
         if not candidate or len(candidate) > 40 or len(candidate.split()) > 5:
@@ -96,7 +100,12 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
         and (not e.degree or _in_text(e.degree, education_hay))
         and (e.institution or e.degree)
     ]
-    ext.projects = [p for p in ext.projects if project_hay and _in_text(p.name, project_hay)]
+    ext.projects = [
+        p for p in ext.projects
+        if project_hay
+        and _in_text(p.name, project_hay)
+        and (not parsed_project_names or re.sub(r"[^a-z0-9]+", "", p.name.lower()) in parsed_project_names)
+    ]
     ext.certifications = [c for c in ext.certifications if certification_hay and _in_text(c.name, certification_hay)]
     ext.skills = [s for s in ext.skills if valid_skill(s.name)]
     for e in ext.experiences:

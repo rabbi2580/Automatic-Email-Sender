@@ -239,7 +239,24 @@ def _parse_education(lines: list[str]) -> list[EducationItem]:
 
 def _parse_projects(lines: list[str], kind: str = "project") -> list[ProjectItem]:
     out: list[ProjectItem] = []
-    for e in _group_entries(lines):
+    if any(re.match(r"^\s*#{1,6}\s+", line) for line in lines):
+        entries: list[dict] = []
+        current: dict | None = None
+        for line in lines:
+            heading = re.match(r"^\s*#{1,6}\s+(.+?)\s*$", line)
+            if heading:
+                if current:
+                    entries.append(current)
+                current = {"head": [heading.group(1)], "bullets": []}
+            elif current and line.strip():
+                current["head"].append(line.strip())
+        if current:
+            entries.append(current)
+    else:
+        entries = _group_entries(lines)
+
+    non_project_headings = {"database management", "tools", "web development", "programming", "embedded system"}
+    for e in entries:
         if not e["head"] and not e["bullets"]:
             continue
         head = e["head"][0] if e["head"] else (e["bullets"].pop(0) if e["bullets"] else "")
@@ -251,7 +268,8 @@ def _parse_projects(lines: list[str], kind: str = "project") -> list[ProjectItem
             name, tail = rest.split(":", 1)
             desc = (tail + " " + extra).strip()
         name = _clean_piece(name)
-        if not name:
+        name_key = re.sub(r"[^a-z0-9 ]", " ", name.lower()).strip()
+        if not name or name_key in non_project_headings:
             continue
         txt = " ".join([head, extra] + e["bullets"])
         urls = URL_RE.findall(txt)
