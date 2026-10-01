@@ -63,11 +63,14 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
         return re.sub(r"\s+", " ", " ".join(" ".join(sections.get(name, [])) for name in names).lower())
 
     experience_hay = section_text("experience")
+    experience_headers = " ".join(
+        line.strip() for line in sections.get("experience", [])
+        if line.strip() and not re.match(r"^\s*(?:[`*_~]*\s*[•·▪■◦●\-–—*>]\s+|\d+[.)]\s+)", line)
+    )
+    experience_header_hay = re.sub(r"\s+", " ", experience_headers.lower())
     education_hay = section_text("education")
     project_hay = section_text("projects", "research")
     certification_hay = section_text("certifications")
-    skill_hay = section_text("skills")
-
     def valid_skill(name: str) -> bool:
         candidate = name.strip()
         if not candidate or len(candidate) > 40 or len(candidate.split()) > 5:
@@ -77,13 +80,13 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
         if not re.search(r"[A-Za-z]", candidate):
             return False
         recognized = bool(find_skills(candidate, include_ambiguous_tokens=True))
-        return (_in_text(candidate, hay) and recognized) or _in_text(candidate, skill_hay)
+        return _in_text(candidate, hay) and recognized
 
     ext.experiences = [
         e for e in ext.experiences
-        if experience_hay
-        and (not e.title or _in_text(e.title, experience_hay))
-        and (not e.company or _in_text(e.company, experience_hay))
+        if experience_header_hay
+        and (not e.title or _in_text(e.title, experience_header_hay))
+        and (not e.company or _in_text(e.company, experience_header_hay))
         and (e.title or e.company)
     ]
     ext.educations = [

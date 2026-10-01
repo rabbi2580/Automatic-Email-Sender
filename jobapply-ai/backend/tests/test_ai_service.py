@@ -141,6 +141,48 @@ Python, SQL
     assert grounded.experiences == []
 
 
+def test_grounding_rejects_cv_dates_locations_and_experience_bullets():
+    cv_text = """Tarif Ul Haider Rabbi
+haiderrabbi06@gmail.com
+Bashundhara R/A, Dhaka
+
+WORK EXPERIENCE
+Support Engineer Intern, Innovative Techworks Group
+* Trained and fine-tuned LLMs, experimenting with Gemma and Qwen.
+* Contributed to EDUCRM, developing backend features and APIs using Django and Python.
+* Developed an ML-based location solution using the Google Maps Places API.
+
+TECHNICAL SKILLS
+06/2026 - 09/2026
+Dhaka, Bangladesh
+2023 - 09/2026
+Web Development
+Django, FastAPI, REST APIs, HTML, CSS, JavaScript, React, Next.js
+Tools
+Sentence-Transformers, Notion, Cloudflare
+"""
+    ext = ProfileExtraction.model_validate({
+        "skills": [
+            {"name": "06"}, {"name": "2026-09"}, {"name": "Dhaka"}, {"name": "Bangladesh"},
+            {"name": "Django"}, {"name": "Notion"}, {"name": "Sentence-Transformers"},
+        ],
+        "experiences": [
+            {"title": "Support Engineer Intern", "company": "Innovative Techworks Group"},
+            {
+                "title": "Contributed to EDUCRM, developing backend features and APIs",
+                "company": "Developed an ML-based location solution using the Google Maps Places API",
+            },
+        ],
+    })
+
+    grounded = pipeline.ground_extraction(ext, cv_text)
+
+    assert [skill.name for skill in grounded.skills] == ["Django", "Notion", "Sentence-Transformers"]
+    assert [(exp.title, exp.company) for exp in grounded.experiences] == [
+        ("Support Engineer Intern", "Innovative Techworks Group"),
+    ]
+
+
 def test_structured_profile_update_keeps_preferences(client):
     headers, _ = register(client)
     payload = {

@@ -33,6 +33,9 @@ TAXONOMY: dict[str, dict[str, list[str]]] = {
         "Data Mining": [], "Explainable AI": ["xai", "shap", "lime", "grad-cam"], "Statistics": ["statistical analysis"], "Data Analysis": ["data analytics"],
         "Data Visualization": ["data visualisation"], "Power BI": ["powerbi"], "Tableau": [], "Excel": ["ms excel", "microsoft excel"], "Spark": ["pyspark", "apache spark"],
         "Kaggle": [], "Jupyter": ["jupyter notebook"], "ETL": [], "Data Warehousing": ["data warehouse"], "Prompt Engineering": [],
+        "Sentence Transformers": ["sentence-transformers"], "Gemma": [], "Qwen": [], "ASR": ["automatic speech recognition"],
+        "Transfer Learning": [], "Model Fine-tuning": ["fine tuning", "fine-tuning"], "Exploratory Data Analysis": ["eda"],
+        "Data Preprocessing": [], "Classification": [], "Confusion Matrix": [], "ROC Curve": [],
     },
     "database": {
         "PostgreSQL": ["postgres", "postgresql"], "MySQL": [], "MongoDB": ["mongo"], "SQLite": [], "Redis": [], "Elasticsearch": ["elastic search"],
@@ -43,7 +46,7 @@ TAXONOMY: dict[str, dict[str, list[str]]] = {
         "AWS": ["amazon web services", "ec2", "s3", "lambda"], "Azure": ["microsoft azure"], "GCP": ["google cloud", "google cloud platform"],
         "Docker": ["containerization", "containers"], "Kubernetes": ["k8s"], "Terraform": [], "Ansible": [], "Jenkins": [],
         "GitHub Actions": [], "GitLab CI": ["gitlab ci/cd"], "CI/CD": ["cicd", "ci cd", "continuous integration"], "Linux": ["ubuntu"],
-        "Nginx": [], "Vercel": [], "Heroku": [], "Serverless": [], "Microservices": ["micro-services", "microservice"],
+        "Nginx": [], "Vercel": [], "Heroku": [], "Serverless": [], "Microservices": ["micro-services", "microservice"], "Cloudflare": [],
     },
     "tool": {
         "Git": [], "GitHub": [], "GitLab": [], "Jira": [], "Postman": [], "Figma": [], "VS Code": ["vscode", "visual studio code"],
@@ -51,6 +54,7 @@ TAXONOMY: dict[str, dict[str, list[str]]] = {
         "Streamlit": [], "Gradio": [], "LaTeX": [], "Unit Testing": ["unit tests", "tdd", "test driven development"], "System Design": [],
         "OOP": ["object oriented programming", "object-oriented programming", "object oriented"], "Data Structures": ["dsa", "algorithms", "data structures and algorithms"],
         "Web Scraping": ["scrapy", "beautifulsoup"], "Computer Networks": ["networking"], "Cybersecurity": ["information security"],
+        "Notion": [], "Arduino": [], "MPU6050": [], "Google Maps Places API": [],
     },
     "soft": {
         "Communication": [], "Teamwork": ["team work", "collaboration", "team player"], "Leadership": [], "Problem Solving": ["problem-solving"],

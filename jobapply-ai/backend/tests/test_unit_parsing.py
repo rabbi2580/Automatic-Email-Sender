@@ -33,6 +33,39 @@ def test_cv_parser_never_invents_missing_sections():
     assert [s.name for s in p.skills] == ["Python", "SQL"]
 
 
+def test_cv_parser_keeps_project_titles_and_stops_before_other_sections():
+    text = """Tarif Ul Haider Rabbi
+PROJECTS
+### Machine Learning - Heart Failure Detection
+Data Science & Machine Learning
+Data preprocessing, feature engineering, classification models, and accuracy analysis.
+GitHub: https://github.com/rabbi2580/Machine-Learning--Heart-Failure-Disease
+### Natural Language Processing - AgriBot - AI-Powered Agricultural Assistant
+Developed a Bengali AI chatbot using NLP and Sentence-BERT semantic search.
+GitHub: https://github.com/rabbi2580/AgriBot_BD
+Extra Curricular Activities
+Taroonor Progoti Foundation, Advisor
+2019 - Present
+Certifications & Professional Training
+Code to Cloud: Practical DevOps with AWS, Cloudly Infotech Limited
+03/2026
+Strengths & Interests
+* Strong command of English
+* Passionate about innovation and creative problem-solving
+References
+A. K. M. Abdul Halim, Head of Network
+"""
+
+    profile = parse_cv_text(text, TODAY)
+
+    assert [project.name for project in profile.projects] == [
+        "Machine Learning - Heart Failure Detection",
+        "Natural Language Processing - AgriBot - AI-Powered Agricultural Assistant",
+    ]
+    assert profile.extracurriculars == ["Taroonor Progoti Foundation, Advisor", "2019 - Present"]
+    assert all("Strong command" not in project.name for project in profile.projects)
+
+
 def test_job_parsing_messy_post():
     j = parse_job_text((FIX / "job1.txt").read_text(), TODAY)
     assert j.company == "XYZ Technologies Ltd" and j.job_title == "Junior Software Engineer"

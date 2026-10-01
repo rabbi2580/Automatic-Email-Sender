@@ -20,10 +20,13 @@ SECTION_ALIASES = {
     "research": ["research", "research experience", "research projects"],
     "publications": ["publications", "papers", "research papers", "selected publications"],
     "skills": ["skills", "technical skills", "key skills", "core competencies", "skills & tools", "skills and tools", "technologies", "tech stack", "technical expertise"],
-    "certifications": ["certifications", "certificates", "licenses & certifications", "courses", "training", "licenses and certifications"],
+    "certifications": ["certifications", "certificates", "licenses & certifications", "courses", "training", "licenses and certifications",
+                       "certifications & professional training", "certifications and professional training"],
     "achievements": ["achievements", "awards", "honors", "honours", "awards & achievements", "awards and honors", "accomplishments", "scholarships"],
     "languages": ["languages", "language proficiency"],
-    "extracurricular": ["extracurricular", "extracurricular activities", "activities", "volunteer", "volunteering", "leadership", "co-curricular activities", "volunteer experience"],
+    "extracurricular": ["extracurricular", "extracurricular activities", "extra curricular activities", "extra-curricular activities",
+                        "activities", "volunteer", "volunteering", "leadership", "co-curricular activities", "volunteer experience"],
+    "interests": ["strengths & interests", "strengths and interests", "strengths", "interests"],
     "references": ["references"],
 }
 _HEADER_LOOKUP = {a: sec for sec, al in SECTION_ALIASES.items() for a in al}
@@ -242,16 +245,11 @@ def _parse_projects(lines: list[str], kind: str = "project") -> list[ProjectItem
         head = e["head"][0] if e["head"] else (e["bullets"].pop(0) if e["bullets"] else "")
         extra = " ".join(e["head"][1:])
         _s, _e, _c, rest = _parse_range(head)
+        rest = re.sub(r"^\s*#{1,6}\s*", "", rest)
         name, desc = rest, extra
         if ":" in rest and len(rest.split(":")[0]) < 80:
             name, tail = rest.split(":", 1)
             desc = (tail + " " + extra).strip()
-        else:
-            pieces = _split_header_pieces(rest)
-            if pieces:
-                name = pieces[0]
-                if len(pieces) > 1:
-                    desc = (" – ".join(pieces[1:]) + " " + extra).strip()
         name = _clean_piece(name)
         if not name:
             continue
