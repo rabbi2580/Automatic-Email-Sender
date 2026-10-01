@@ -111,6 +111,36 @@ def test_grounding_drops_hallucinated_cv_content():
     assert g.educations == [] and g.certifications == [] and g.projects == [] and g.phone == ""
 
 
+def test_grounding_rejects_dates_and_unrelated_text_as_skills_or_experience():
+    cv_text = """Jane Doe
+Dhaka, Bangladesh
+
+EXPERIENCE
+Support Engineer | Acme Ltd | Jan 2022 - Dec 2023
+- Resolved customer issues using Python.
+
+PROJECTS
+Developed an ML based location solution for a university project.
+
+TECHNICAL SKILLS
+Python, SQL
+"""
+    ext = ProfileExtraction.model_validate({
+        "skills": [{"name": "2022-06"}, {"name": "Dhaka"}, {"name": "Python"}],
+        "experiences": [{
+            "title": "Developed an ML based location solution",
+            "company": "university project",
+            "start_date": "Jan 2022",
+            "end_date": "Dec 2023",
+        }],
+    })
+
+    grounded = pipeline.ground_extraction(ext, cv_text)
+
+    assert [skill.name for skill in grounded.skills] == ["Python"]
+    assert grounded.experiences == []
+
+
 def test_structured_profile_update_keeps_preferences(client):
     headers, _ = register(client)
     payload = {

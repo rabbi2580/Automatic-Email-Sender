@@ -29,7 +29,7 @@ from app.services.generation import exporters
 from app.services.generation.cv_builder import BuildOptions, ROLE_LABELS, build_tailored_cv, classify_role_type
 from app.services.generation.letters import analyze_fit, generate_cover_letter, generate_email
 from app.services.matching.engine import compute_match
-from app.services.parsing.cv_parser import parse_cv_text
+from app.services.parsing.cv_parser import parse_cv_text, split_sections
 from app.services.parsing.documents import DocumentError, extract_text
 from app.services.parsing.job_parser import parse_job_text
 from app.services.parsing.skills import canonicalize, category_of, find_skills
@@ -55,17 +55,51 @@ def _in_text(needle: str, hay_lower: str) -> bool:
 
 
 def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
-    """Drop anything an extractor produced that cannot be found in the source CV text (anti-hallucination)."""
+    """Keep extracted facts only when they are supported by the matching CV section."""
     hay = re.sub(r"\s+", " ", text.lower())
-    ext.experiences = [e for e in ext.experiences if _in_text(e.company, hay) or _in_text(e.title, hay)]
-    ext.educations = [e for e in ext.educations if _in_text(e.institution, hay) or _in_text(e.degree, hay)]
-    ext.projects = [p for p in ext.projects if _in_text(p.name, hay)]
-    ext.certifications = [c for c in ext.certifications if _in_text(c.name, hay)]
-    ext.skills = [s for s in ext.skills if _in_text(s.name, hay) or canonicalize(s.name).lower() in hay or any(a in hay for a in [s.name.lower()])]
+    sections = split_sections(text)[1]
+
+    def section_text(*names: str) -> str:
+        return re.sub(r"\s+", " ", " ".join(" ".join(sections.get(name, [])) for name in names).lower())
+
+    experience_hay = section_text("experience")
+    education_hay = section_text("education")
+    project_hay = section_text("projects", "research")
+    certification_hay = section_text("certifications")
+    skill_hay = section_text("skills")
+
+    def valid_skill(name: str) -> bool:
+        candidate = name.strip()
+        if not candidate or len(candidate) > 40 or len(candidate.split()) > 5:
+            return False
+        if re.search(r"\b(?:19|20)\d{2}\b|\b\d{1,2}/\d{4}\b", candidate):
+            return False
+        if not re.search(r"[A-Za-z]", candidate):
+            return False
+        recognized = bool(find_skills(candidate, include_ambiguous_tokens=True))
+        return (_in_text(candidate, hay) and recognized) or _in_text(candidate, skill_hay)
+
+    ext.experiences = [
+        e for e in ext.experiences
+        if experience_hay
+        and (not e.title or _in_text(e.title, experience_hay))
+        and (not e.company or _in_text(e.company, experience_hay))
+        and (e.title or e.company)
+    ]
+    ext.educations = [
+        e for e in ext.educations
+        if education_hay
+        and (not e.institution or _in_text(e.institution, education_hay))
+        and (not e.degree or _in_text(e.degree, education_hay))
+        and (e.institution or e.degree)
+    ]
+    ext.projects = [p for p in ext.projects if project_hay and _in_text(p.name, project_hay)]
+    ext.certifications = [c for c in ext.certifications if certification_hay and _in_text(c.name, certification_hay)]
+    ext.skills = [s for s in ext.skills if valid_skill(s.name)]
     for e in ext.experiences:
-        e.bullets = [b for b in e.bullets if _in_text(b[:60], hay)]
+        e.bullets = [b for b in e.bullets if _in_text(b[:60], experience_hay)]
     for p in ext.projects:
-        p.bullets = [b for b in p.bullets if _in_text(b[:60], hay)]
+        p.bullets = [b for b in p.bullets if _in_text(b[:60], project_hay)]
     if ext.email and ext.email.lower() not in hay:
         ext.email = ""
     if ext.phone and re.sub(r"\D", "", ext.phone) not in re.sub(r"\D", "", text):
@@ -162,8 +196,13 @@ def process_resume(db: Session, resume_id: uuid.UUID) -> Resume:
         fallback=lambda: parse_cv_text(doc.text),
     )
     ext = ground_extraction(ext, doc.text)
-    if source == "llm" and not (ext.experiences or ext.educations or ext.projects):  # LLM output was entirely ungrounded → heuristic
-        ext = ground_extraction(parse_cv_text(doc.text), doc.text)
+    if source == "llm":
+        heuristic = ground_extraction(parse_cv_text(doc.text), doc.text)
+        for attr in ("skills", "experiences", "educations", "projects", "certifications"):
+            if not getattr(ext, attr):
+                setattr(ext, attr, getattr(heuristic, attr))
+        if not (ext.experiences or ext.educations or ext.projects):
+            ext = heuristic
     profile = apply_extraction(db, user, ext, resume)
     thin = not profile.full_name or not (ext.experiences or ext.educations or ext.projects)
     resume.status = "requires_review" if thin else "completed"
