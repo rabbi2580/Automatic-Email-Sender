@@ -1,0 +1,34 @@
+Tarif Ul Haider Rabbi
+Dhaka, Bangladesh | rabbi@example.com | +880 1712-345678
+linkedin.com/in/tarif-rabbi | github.com/tarifrabbi
+
+SUMMARY
+Recent CSE graduate focused on machine learning and software engineering.
+
+EDUCATION
+American International University-Bangladesh (AIUB)
+B.Sc. in Computer Science and Engineering | 2023 – 2026
+CGPA: 3.31 / 4.00
+
+EXPERIENCE
+Support Engineer Intern | Innovative Techworks Group, Dhaka | Jun 2026 – Present
+• Resolved customer tickets and documented fixes using Python and SQL
+• Collaborated with developers on REST API issues
+
+PROJECTS
+CropXAI-Net: Lightweight hybrid CNN-Transformer for crop disease classification
+• Trained PyTorch model on 24 classes and used Grad-CAM for explainability
+• Deployed demo with Streamlit
+Blood-Connect: Blood donation web app
+• Built with Django and PostgreSQL; wrote Selenium tests
+
+TECHNICAL SKILLS
+Languages: Python, Java, C, SQL
+AI/ML: PyTorch, scikit-learn, Pandas, NumPy
+Tools: Git, Docker, Linux
+
+CERTIFICATIONS
+Machine Learning Specialization – Coursera 2024
+
+LANGUAGES
+Bangla (Native), English (Fluent)

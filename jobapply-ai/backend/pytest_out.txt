@@ -1,0 +1,24 @@
+..............................F
+================================== FAILURES ===================================
+____________ test_tailored_cv_is_grounded_and_ordered_by_relevance ____________
+
+world = ({'full_name': 'Tarif Ul Haider Rabbi', 'email': 'rabbi@example.com', 'phone': '+880 1712-345678', 'location': 'Dhaka,...nologies Ltd', 'job_title': 'Junior Software Engineer', 'required_skills': ['Python', 'Django', 'Docker', 'Git'], ...})
+
+    def test_tailored_cv_is_grounded_and_ordered_by_relevance(world):
+        prof, job = world
+        cv = build_tailored_cv(prof, job, BuildOptions(pages=1))
+        assert cv["header"]["name"] == prof["full_name"]
+        names = [s["name"] for s in cv["skills"]]
+        assert names.index("Django") < names.index("Java")  # job-relevant skills first
+        assert cv["projects"][0]["name"] == "Blood-Connect"  # Django/PostgreSQL project outranks the CNN project for this job
+        assert {e["company"] for e in cv["experience"]} == {"Innovative Techworks Group"}
+>       assert cv["experience"][0]["start_date"] == "Jun 2026" and cv["experience"][0]["is_current"] is True
+E       AssertionError: assert ('' == 'Jun 2026'
+E         
+E         - Jun 2026)
+
+tests\test_generation_qc.py:49: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_generation_qc.py::test_tailored_cv_is_grounded_and_ordered_by_relevance
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 30 passed in 68.71s (0:01:08)
