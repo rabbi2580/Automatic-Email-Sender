@@ -82,6 +82,12 @@ class ProfileExtraction(_Lenient):
     summary: str = ""
     links: dict[str, str | list[str]] = Field(default_factory=dict)
     years_experience: float | None = None
+    target_roles: list[str] = Field(default_factory=list)
+    preferred_locations: list[str] = Field(default_factory=list)
+    work_preference: Literal["onsite", "hybrid", "remote", "any"] = "any"
+    salary_expectation: str = ""
+    work_authorization: str = ""
+    other_preferences: str = ""
     skills: list[SkillItem] = Field(default_factory=list)
     experiences: list[ExperienceItem] = Field(default_factory=list)
     educations: list[EducationItem] = Field(default_factory=list)
@@ -95,6 +101,11 @@ class ProfileExtraction(_Lenient):
     @field_validator("full_name", "email", "phone", "location", "headline", "summary", mode="before")
     @classmethod
     def _s(cls, v):
+        return _str(v)
+
+    @field_validator("salary_expectation", "work_authorization", "other_preferences", mode="before")
+    @classmethod
+    def _s_more(cls, v):
         return _str(v)
 
 

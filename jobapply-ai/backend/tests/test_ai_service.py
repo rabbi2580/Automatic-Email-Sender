@@ -10,6 +10,7 @@ from app.services.ai.providers import AIProvider, ProviderError
 from app.services.ai.safety import looks_like_injection, wrap_untrusted
 from app.services.ai.service import AIService, AIUnavailable
 from app.services import pipeline
+from tests.helpers import register
 
 
 class FakeProvider(AIProvider):
@@ -108,6 +109,33 @@ def test_grounding_drops_hallucinated_cv_content():
     assert [s.name for s in g.skills] == ["SQL", "Tableau"]
     assert [e.company for e in g.experiences] == ["Initech Ltd"] and g.experiences[0].bullets == ["Built dashboards in Tableau"]
     assert g.educations == [] and g.certifications == [] and g.projects == [] and g.phone == ""
+
+
+def test_structured_profile_update_keeps_preferences(client):
+    headers, _ = register(client)
+    payload = {
+        "full_name": "Jane Doe",
+        "email": "jane@example.com",
+        "location": "Remote, EU",
+        "target_roles": ["Python Engineer", "Data Analyst"],
+        "preferred_locations": ["Berlin", "Remote"],
+        "work_preference": "remote",
+        "salary_expectation": "€90k",
+        "work_authorization": "EU work authorization",
+        "other_preferences": "Open to relocation",
+        "languages": ["English", "German"],
+        "skills": [{"name": "Python"}],
+    }
+
+    r = client.put("/api/v1/profile/structured", headers=headers, json=payload)
+    assert r.status_code == 200, r.text
+    prof = client.get("/api/v1/profile", headers=headers).json()
+    assert prof["target_roles"] == ["Python Engineer", "Data Analyst"]
+    assert prof["preferred_locations"] == ["Berlin", "Remote"]
+    assert prof["work_preference"] == "remote"
+    assert prof["location"] == "Remote, EU"
+    assert "target_roles" not in prof["completeness"]["missing"]
+    assert "location" not in prof["completeness"]["missing"]
 
 
 def test_llm_extraction_pipeline_end_to_end(client, db, monkeypatch):

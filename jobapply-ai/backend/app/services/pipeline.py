@@ -83,8 +83,22 @@ def apply_extraction(db: Session, user: User, ext: ProfileExtraction, resume: Re
     # scalars: user-entered values win unless overwrite requested
     for attr in ("full_name", "email", "phone", "location", "headline", "summary"):
         val = getattr(ext, attr)
-        if val and (overwrite_scalars or not getattr(profile, attr)):
+        if (overwrite_scalars or not getattr(profile, attr)) and (val is not None):
             setattr(profile, attr, val)
+
+    for attr, value in (
+        ("target_roles", ext.target_roles),
+        ("preferred_locations", ext.preferred_locations),
+        ("salary_expectation", ext.salary_expectation),
+        ("work_authorization", ext.work_authorization),
+        ("other_preferences", ext.other_preferences),
+    ):
+        if overwrite_scalars or not getattr(profile, attr):
+            setattr(profile, attr, value)
+
+    if overwrite_scalars or not profile.work_preference:
+        profile.work_preference = ext.work_preference or "any"
+
     if not profile.email:
         profile.email = user.email
     links = dict(profile.links or {})
