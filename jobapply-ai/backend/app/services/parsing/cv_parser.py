@@ -175,31 +175,63 @@ def _group_entries(lines: list[str]) -> list[dict]:
     return entries
 
 
+def _is_experience_heading(line: str) -> bool:
+    text = _strip_bullet(line)
+    if not text or _is_bullet(line) or len(text) > 140 or URL_RE.search(text) or EMAIL_RE.search(text):
+        return False
+    if not TITLE_WORDS.search(text):
+        return False
+    return bool(DATE_RANGE_RE.search(text) or re.search(r"[|,@]|\bat\b", text, re.I)) or (
+        len(text.split()) <= 6 and not re.search(r"[.!?]", text)
+    )
+
+
 def _parse_experience(lines: list[str], default_kind: str = "work") -> list[ExperienceItem]:
-    out: list[ExperienceItem] = []
-    for e in _group_entries(lines):
-        head = " | ".join(e["head"])
-        if not head and not e["bullets"]:
+    entries: list[dict] = []
+    current: dict | None = None
+
+    def push() -> None:
+        nonlocal current
+        if current:
+            entries.append(current)
+        current = None
+
+    for raw in lines:
+        line = raw.strip()
+        if not line:
             continue
+        if _is_experience_heading(raw):
+            push()
+            current = {"head": [line], "bullets": []}
+        elif current:
+            if DATE_RANGE_RE.search(line) and not any(DATE_RANGE_RE.search(part) for part in current["head"]):
+                current["head"].append(line)
+            else:
+                current["bullets"].append(_strip_bullet(raw))
+    push()
+
+    out: list[ExperienceItem] = []
+    for entry in entries:
+        head = " | ".join(entry["head"])
         start, end, cur, rest = _parse_range(head)
         pieces = _split_header_pieces(rest)
         title = company = location = ""
-        for p in pieces:
-            if not title and TITLE_WORDS.search(p):
-                title = p
-            elif not company and not re.fullmatch(r"[A-Z][a-z]+(?:,\s*[A-Z][A-Za-z ]+)+", p):
-                company = p
+        for piece in pieces:
+            if not title and TITLE_WORDS.search(piece):
+                title = piece
+            elif not company:
+                company = piece
             elif not location:
-                location = p
+                location = piece
         if not title and pieces:
             title = pieces[0]
             company = pieces[1] if len(pieces) > 1 else company
         if not (title or company):
             continue
         kind = "internship" if re.search(r"intern", f"{title} {company}", re.I) else default_kind
-        text = " ".join(e["bullets"] + [head])
+        text = " ".join(entry["bullets"] + [head])
         out.append(ExperienceItem(kind=kind, company=company, title=title, location=location, start_date=start, end_date=end,
-                                  is_current=cur, bullets=e["bullets"], technologies=find_skills(text)))
+                                  is_current=cur, bullets=entry["bullets"], technologies=find_skills(text)))
     return out
 
 
@@ -240,6 +272,31 @@ def _parse_education(lines: list[str]) -> list[EducationItem]:
     return out
 
 
+_PROJECT_CATEGORY_LABELS = {
+    "database management", "data science & machine learning", "tools", "web development", "programming", "embedded system",
+}
+
+
+def _is_strength_statement(line: str) -> bool:
+    text = _strip_bullet(line).strip().lower()
+    return text.startswith(("strong ", "eager to learn", "enjoy working", "passionate about", "creative problem-solving"))
+
+
+def _is_project_heading(line: str) -> bool:
+    text = re.sub(r"^\s*#{1,6}\s*", "", line).strip()
+    key = re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+    if (not text or key in _PROJECT_CATEGORY_LABELS or _is_strength_statement(text)
+            or URL_RE.search(text) or EMAIL_RE.search(text) or DATE_RANGE_RE.search(text)
+            or re.search(r"[.!?]$", text)):
+        return False
+    return bool(re.search(r"[-–—]", text)) and len(text.split()) >= 3 and len(text) <= 140 and text.count(",") <= 1
+
+
+def _is_project_category_line(line: str) -> bool:
+    key = re.sub(r"[^a-z0-9]+", " ", line.lower()).strip()
+    return key in _PROJECT_CATEGORY_LABELS
+
+
 def _parse_projects(lines: list[str], kind: str = "project") -> list[ProjectItem]:
     out: list[ProjectItem] = []
     if any(re.match(r"^\s*#{1,6}\s+", line) for line in lines):
@@ -256,25 +313,46 @@ def _parse_projects(lines: list[str], kind: str = "project") -> list[ProjectItem
         if current:
             entries.append(current)
     else:
-        entries = _group_entries(lines)
+        entries = []
+        current = None
+        for line in lines:
+            if _is_project_heading(line):
+                if current:
+                    entries.append(current)
+                current = {"head": [line.strip()], "bullets": []}
+            elif current and line.strip():
+                current["head"].append(line.strip())
+        if current:
+            entries.append(current)
 
-    non_project_headings = {"database management", "tools", "web development", "programming", "embedded system"}
     for e in entries:
         if not e["head"] and not e["bullets"]:
             continue
         head = e["head"][0] if e["head"] else (e["bullets"].pop(0) if e["bullets"] else "")
-        extra = " ".join(e["head"][1:])
         _s, _e, _c, rest = _parse_range(head)
         rest = re.sub(r"^\s*#{1,6}\s*", "", rest)
-        name, desc = rest, extra
+        name = _clean_piece(rest)
+        detail_lines = []
+        skip_category_values = False
+        for line in e["head"][1:] + e["bullets"]:
+            if _is_project_category_line(line):
+                skip_category_values = True
+                continue
+            if skip_category_values:
+                skip_category_values = False
+                continue
+            if URL_RE.search(line) or _is_strength_statement(line):
+                continue
+            detail_lines.append(line)
+        desc = " ".join(detail_lines)
         if ":" in rest and len(rest.split(":")[0]) < 80:
             name, tail = rest.split(":", 1)
-            desc = (tail + " " + extra).strip()
+            desc = " ".join([tail.strip(), desc]).strip()
         name = _clean_piece(name)
         name_key = re.sub(r"[^a-z0-9 ]", " ", name.lower()).strip()
-        if not name or name_key in non_project_headings:
+        if not name or name_key in _PROJECT_CATEGORY_LABELS or _is_strength_statement(name):
             continue
-        txt = " ".join([head, extra] + e["bullets"])
+        txt = " ".join([head, *detail_lines])
         urls = URL_RE.findall(txt)
         out.append(ProjectItem(name=name, description=desc.strip(), bullets=e["bullets"], technologies=find_skills(txt),
                                url=urls[0] if urls else "", kind=kind))
@@ -394,7 +472,10 @@ def parse_cv_text(text: str, today: date | None = None) -> ProfileExtraction:
     work += _parse_experience(sections.get("volunteer_experience", []), default_kind="volunteer")
     research_lines = sections.get("research", [])
     research = _parse_projects(research_lines, kind="research") if research_lines else []
-    projects = _parse_projects(sections.get("projects", [])) + research
+    project_lines = sections.get("projects", [])
+    embedded_strengths = [_strip_bullet(line) for line in project_lines if _is_strength_statement(line)]
+    project_lines = [line for line in project_lines if not _is_strength_statement(line)]
+    projects = _parse_projects(project_lines) + research
     educations = _parse_education(sections.get("education", []))
 
     skills_map: dict[str, SkillItem] = {s.name.lower(): s for s in _parse_skills(sections.get("skills", []))}
@@ -432,6 +513,7 @@ def parse_cv_text(text: str, today: date | None = None) -> ProfileExtraction:
         full_name=_name_from_header(personal, email), email=email, phone=phone, location=location, headline=headline, summary=summary,
         links={k: v for k, v in links.items() if v}, years_experience=_years_from_experiences(work, today),
         skills=list(skills_map.values()), experiences=work, educations=educations, projects=projects, certifications=certs,
-        languages=languages, strengths=plain("strengths"), achievements=plain("achievements"), publications=plain("publications"),
+        languages=languages, strengths=list(dict.fromkeys(plain("strengths") + embedded_strengths)),
+        achievements=plain("achievements"), publications=plain("publications"),
         extracurriculars=plain("extracurricular"), references=plain("references"),
     )

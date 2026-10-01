@@ -214,6 +214,51 @@ Strong command of English.
     ]
 
 
+def test_grounding_rejects_docx_skill_rows_and_bullet_text_as_records():
+    cv_text = """WORK EXPERIENCE
+Support Engineer Intern, Innovative Techworks Group
+Trained and fine-tuned LLMs using Gemma and Qwen.
+Contributed to EDUCRM, developing backend features with Django and Python.
+Developed an ML-based location solution using Google Maps Places API.
+PROJECTS
+Machine Learning - Heart Failure Detection
+Data Science & Machine Learning
+Machine Learning, Deep Learning, NLP, Computer Vision, LLMs, RAG, Feature Engineering
+Database Management
+MySQL, PostgreSQL, Oracle
+Tools
+PyTorch, TensorFlow, Scikit-learn, Hugging Face, Pandas, NumPy, Git, AWS, Notion
+Data preprocessing, feature engineering, classification models, and confusion matrix evaluation.
+Natural Language Processing - AgriBot - AI-Powered Agricultural Assistant
+Developed a Bengali AI chatbot using NLP and Sentence-BERT semantic search.
+Strong command of English
+Eager to learn and take on new challenges
+"""
+    ext = ProfileExtraction.model_validate({
+        "experiences": [
+            {"kind": "internship", "title": "Support Engineer Intern", "company": "Innovative Techworks Group"},
+            {"kind": "work", "title": "Contributed to EDUCRM, developing backend features with Django and Python", "company": "Developed an ML-based location solution using Google Maps Places API"},
+        ],
+        "projects": [
+            {"name": "Machine Learning - Heart Failure Detection"},
+            {"name": "Database Management"},
+            {"name": "PyTorch"},
+            {"name": "Strong command of English"},
+            {"name": "Natural Language Processing - AgriBot - AI-Powered Agricultural Assistant"},
+        ],
+    })
+
+    grounded = pipeline.ground_extraction(ext, cv_text)
+
+    assert [(item.title, item.company) for item in grounded.experiences] == [
+        ("Support Engineer Intern", "Innovative Techworks Group"),
+    ]
+    assert [project.name for project in grounded.projects] == [
+        "Machine Learning - Heart Failure Detection",
+        "Natural Language Processing - AgriBot - AI-Powered Agricultural Assistant",
+    ]
+
+
 def test_structured_profile_update_keeps_preferences(client):
     headers, _ = register(client)
     payload = {

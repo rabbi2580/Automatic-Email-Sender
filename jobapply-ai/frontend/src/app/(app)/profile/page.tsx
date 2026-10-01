@@ -67,10 +67,13 @@ export default function Profile() {
     </Card>
   );
   return (
-    <>
-      <div className="flex items-center justify-between"><h1 className="text-xl font-bold">My Profile</h1><Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button></div>
+    <div className="profile-page">
+      <div className="profile-heading">
+        <div><p className="eyebrow">Candidate workspace</p><h1>My Profile</h1></div>
+        <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button>
+      </div>
       {!p.resume && <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">No CV uploaded yet. <Link className="underline" href="/cvs">Upload one</Link> to fill this in automatically, or enter details by hand.</div>}
-      <Card title={`Profile completeness: ${c.percent}%`}><ScoreBar value={c.percent} />{c.missing.length > 0 && <p className="mt-2 text-xs text-slate-500">Missing: {c.missing.join(", ").replace(/_/g, " ")}</p>}</Card>
+      <Card className="profile-completion" title={`Profile completeness: ${c.percent}%`}><ScoreBar value={c.percent} />{c.missing.length > 0 && <p className="mt-2 text-xs text-slate-500">Missing: {c.missing.join(", ").replace(/_/g, " ")}</p>}</Card>
 
       <Card title="Personal Information / Contact Information">
         <div className="grid gap-3 md:grid-cols-2">
@@ -158,6 +161,6 @@ export default function Profile() {
       </Card>
 
       <div className="text-right"><Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button></div>
-    </>
+    </div>
   );
 }

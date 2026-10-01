@@ -117,6 +117,66 @@ Dr. Example, Example University, example@example.com
     assert profile.languages == ["English", "Bangla"]
 
 
+def test_cv_parser_handles_docx_layout_without_markdown_or_bullet_markers():
+    text = """WORK EXPERIENCE
+Support Engineer Intern, Innovative Techworks Group
+Trained and fine-tuned LLMs, experimenting with pre-trained models including Gemma and Qwen.
+Worked on ASR models through audio annotation, model training, and fine-tuning.
+Contributed to EDUCRM, developing and maintaining backend features and APIs using Django and Python.
+Developed an ML-based location solution using the Google Maps Places API and gained hands-on experience with AWS, Azure, and Cloudflare.
+PROJECTS
+Machine Learning - Heart Failure Detection
+Data Science & Machine Learning
+Machine Learning, Deep Learning, NLP, Computer Vision, LLMs, RAG, Model Fine-tuning, Transfer Learning, Data Preprocessing, EDA, Feature Engineering
+Database Management
+MySQL, PostgreSQL, Oracle
+Tools
+PyTorch, TensorFlow, Scikit-learn, Hugging Face, Pandas, NumPy, Matplotlib, OpenCV, Sentence-Transformers, Gradio, Git, GitHub, AWS, Figma, Notion
+Data preprocessing, feature engineering, classification models, accuracy and precision analysis, confusion matrix evaluation, consumption forecasting, and smarter energy optimization.
+GitHub : https://github.com/rabbi2580/Machine-Learning--Heart-Failure-Disease
+Natural Language Processing - AgriBot - AI-Powered Agricultural Assistant
+Developed a Bengali AI chatbot using NLP and Sentence-BERT semantic search to provide agricultural information.
+GitHub : https://github.com/rabbi2580/AgriBot_BD
+Computer Vision & Pattern Recognition-Brain Tumor Detection
+Data preprocessing, CNN model, accuracy, Roc curve, confusion matrix evaluation
+GitHub : https://github.com/rabbi2580/Brain-Tumor-MRI-Detection-using-CNN-model
+Machine Learning- Diabetes Prediction
+Hugging face, Gradio, Data preprocessing, feature engineering, classification models, accuracy analysis.
+GitHub : https://github.com/rabbi2580/Diabetes-prediction
+Web Technology - Smart City Corporation Management System
+Smart City Corporation with property browsing, registration and login, password management, and MVC-based workflow.
+GitHub : https://github.com/rabbi2580/Smart-City-Hub_webtech
+C# Project- Online Book Shop (Buy & Rent)
+It is created by using C# language, where user can buy or rent books.
+GitHub : https://github.com/rabbi2580/Online-Book-Shop-Buy-Rent-Book
+Strong command of English
+Eager to learn and take on new challenges
+Enjoy working independently and in teams
+Passionate about innovation and creative problem-solving
+References
+"""
+
+    profile = parse_cv_text(text, TODAY)
+
+    assert [(item.title, item.company, item.kind) for item in profile.experiences] == [
+        ("Support Engineer Intern", "Innovative Techworks Group", "internship"),
+    ]
+    assert [project.name for project in profile.projects] == [
+        "Machine Learning - Heart Failure Detection",
+        "Natural Language Processing - AgriBot - AI-Powered Agricultural Assistant",
+        "Computer Vision & Pattern Recognition-Brain Tumor Detection",
+        "Machine Learning- Diabetes Prediction",
+        "Web Technology - Smart City Corporation Management System",
+        "C# Project- Online Book Shop (Buy & Rent)",
+    ]
+    assert profile.strengths == [
+        "Strong command of English",
+        "Eager to learn and take on new challenges",
+        "Enjoy working independently and in teams",
+        "Passionate about innovation and creative problem-solving",
+    ]
+
+
 def test_job_parsing_messy_post():
     j = parse_job_text((FIX / "job1.txt").read_text(), TODAY)
     assert j.company == "XYZ Technologies Ltd" and j.job_title == "Junior Software Engineer"

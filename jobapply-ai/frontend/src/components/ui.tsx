@@ -5,18 +5,18 @@ export function cx(...a: (string | false | null | undefined)[]) { return a.filte
 
 export function Button({ variant = "primary", className, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" }) {
   const v = {
-    primary: "bg-brand-600 text-white hover:bg-brand-700",
-    secondary: "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
-    danger: "bg-red-600 text-white hover:bg-red-700",
-    ghost: "text-slate-700 hover:bg-slate-100",
+    primary: "bg-brand-600 text-white shadow-sm hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300",
+    secondary: "border border-slate-300 bg-white text-slate-800 shadow-sm hover:border-brand-300 hover:bg-brand-50",
+    danger: "bg-red-600 text-white shadow-sm hover:bg-red-700",
+    ghost: "text-slate-700 hover:bg-brand-50 hover:text-brand-700",
   }[variant];
-  return <button {...p} className={cx("inline-flex items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50", v, className)} />;
+  return <button {...p} className={cx("inline-flex min-h-10 items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-semibold transition duration-150 disabled:cursor-not-allowed disabled:opacity-50", v, className)} />;
 }
 
 export function Card({ title, actions, children, className }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cx("rounded-lg border border-slate-200 bg-white p-4 shadow-sm", className)}>
-      {(title || actions) && <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-sm font-semibold text-slate-800">{title}</h2><div className="flex gap-2">{actions}</div></div>}
+    <section className={cx("ui-card", className)}>
+      {(title || actions) && <div className="ui-card-head"><h2 className="ui-card-title">{title}</h2><div className="flex gap-2">{actions}</div></div>}
       {children}
     </section>
   );

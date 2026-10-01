@@ -71,9 +71,12 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
     education_hay = section_text("education")
     project_hay = section_text("projects", "research")
     certification_hay = section_text("certifications")
-    parsed_project_names = {
-        re.sub(r"[^a-z0-9]+", "", project.name.lower())
-        for project in parse_cv_text(text).projects
+    parsed_profile = parse_cv_text(text)
+    normalize_record = lambda value: re.sub(r"[^a-z0-9]+", "", value.lower())
+    parsed_project_names = {normalize_record(project.name) for project in parsed_profile.projects}
+    parsed_experience_records = {
+        (normalize_record(item.title), normalize_record(item.company))
+        for item in parsed_profile.experiences
     }
     def valid_skill(name: str) -> bool:
         candidate = name.strip()
@@ -92,6 +95,14 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
         and (not e.title or _in_text(e.title, experience_header_hay))
         and (not e.company or _in_text(e.company, experience_header_hay))
         and (e.title or e.company)
+        and (
+            not parsed_experience_records
+            or any(
+                (not e.title or normalize_record(e.title) == title)
+                and (not e.company or normalize_record(e.company) == company)
+                for title, company in parsed_experience_records
+            )
+        )
     ]
     ext.educations = [
         e for e in ext.educations
@@ -104,7 +115,7 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
         p for p in ext.projects
         if project_hay
         and _in_text(p.name, project_hay)
-        and (not parsed_project_names or re.sub(r"[^a-z0-9]+", "", p.name.lower()) in parsed_project_names)
+        and (not parsed_project_names or normalize_record(p.name) in parsed_project_names)
     ]
     ext.certifications = [c for c in ext.certifications if certification_hay and _in_text(c.name, certification_hay)]
     ext.skills = [s for s in ext.skills if valid_skill(s.name)]
