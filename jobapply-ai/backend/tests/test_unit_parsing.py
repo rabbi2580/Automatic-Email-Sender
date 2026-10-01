@@ -66,6 +66,57 @@ A. K. M. Abdul Halim, Head of Network
     assert all("Strong command" not in project.name for project in profile.projects)
 
 
+def test_cv_parser_separates_requested_profile_sections():
+    text = """Tarif Rabbi
+Personal Information / Contact Information
+tarif@example.com
+Dhaka, Bangladesh
+Professional Summary / Career Objective
+Computer science graduate interested in machine learning.
+Work Experience
+Backend Engineer | Example Ltd | 2024 - 2025
+* Built APIs with Python.
+Internship Experience
+Software Engineer Intern | Startup Ltd | 2023 - 2024
+* Developed Django features.
+Volunteer Experience
+Volunteer Tutor | Community Group | 2022 - 2023
+* Taught programming.
+Projects
+### Heart Failure Detection
+Built a classification model.
+Certifications / Courses
+Code to Cloud: Cloudly Infotech | 03/2026
+Achievements / Awards
+Dean's List
+Research / Publications
+Efficient Crop Classification, Journal of AI
+Extracurricular Activities
+Youth Organization, Event Director
+Languages
+English, Bangla
+Strengths & Interests
+* Strong communication
+* Creative problem-solving
+References
+Dr. Example, Example University, example@example.com
+"""
+
+    profile = parse_cv_text(text, TODAY)
+
+    assert [(item.kind, item.title) for item in profile.experiences] == [
+        ("work", "Backend Engineer"),
+        ("internship", "Software Engineer Intern"),
+        ("volunteer", "Volunteer Tutor"),
+    ]
+    assert profile.strengths == ["Strong communication", "Creative problem-solving"]
+    assert profile.references == ["Dr. Example, Example University, example@example.com"]
+    assert profile.achievements == ["Dean's List"]
+    assert profile.publications == ["Efficient Crop Classification, Journal of AI"]
+    assert profile.extracurriculars == ["Youth Organization, Event Director"]
+    assert profile.languages == ["English", "Bangla"]
+
+
 def test_job_parsing_messy_post():
     j = parse_job_text((FIX / "job1.txt").read_text(), TODAY)
     assert j.company == "XYZ Technologies Ltd" and j.job_title == "Junior Software Engineer"

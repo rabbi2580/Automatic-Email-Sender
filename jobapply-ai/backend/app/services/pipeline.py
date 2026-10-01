@@ -62,9 +62,9 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
     def section_text(*names: str) -> str:
         return re.sub(r"\s+", " ", " ".join(" ".join(sections.get(name, [])) for name in names).lower())
 
-    experience_hay = section_text("experience")
+    experience_hay = section_text("experience", "internship", "volunteer_experience")
     experience_headers = " ".join(
-        line.strip() for line in sections.get("experience", [])
+        line.strip() for section in ("experience", "internship", "volunteer_experience") for line in sections.get(section, [])
         if line.strip() and not re.match(r"^\s*(?:[`*_~]*\s*[•·▪■◦●\-–—*>]\s+|\d+[.)]\s+)", line)
     )
     experience_header_hay = re.sub(r"\s+", " ", experience_headers.lower())
@@ -108,6 +108,16 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
     ]
     ext.certifications = [c for c in ext.certifications if certification_hay and _in_text(c.name, certification_hay)]
     ext.skills = [s for s in ext.skills if valid_skill(s.name)]
+    for attr, section in (
+        ("strengths", "strengths"),
+        ("achievements", "achievements"),
+        ("publications", "publications"),
+        ("extracurriculars", "extracurricular"),
+        ("references", "references"),
+        ("languages", "languages"),
+    ):
+        evidence = section_text(section)
+        setattr(ext, attr, [item for item in getattr(ext, attr) if evidence and _in_text(item, evidence)])
     for e in ext.experiences:
         e.bullets = [b for b in e.bullets if _in_text(b[:60], experience_hay)]
     for p in ext.projects:
@@ -155,7 +165,9 @@ def apply_extraction(db: Session, user: User, ext: ProfileExtraction, resume: Re
     if ext.years_experience is not None and (overwrite_scalars or profile.years_experience is None):
         profile.years_experience = ext.years_experience
     profile.languages = ext.languages or profile.languages
+    profile.strengths = ext.strengths
     profile.achievements, profile.publications, profile.extracurriculars = ext.achievements, ext.publications, ext.extracurriculars
+    profile.reference_contacts = ext.references
     if resume:
         profile.source_resume_id = resume.id
 
@@ -210,7 +222,8 @@ def process_resume(db: Session, resume_id: uuid.UUID) -> Resume:
     ext = ground_extraction(ext, doc.text)
     if source == "llm":
         heuristic = ground_extraction(parse_cv_text(doc.text), doc.text)
-        for attr in ("skills", "experiences", "educations", "projects", "certifications"):
+        for attr in ("skills", "experiences", "educations", "projects", "certifications", "languages", "strengths",
+                 "achievements", "publications", "extracurriculars", "references"):
             if not getattr(ext, attr):
                 setattr(ext, attr, getattr(heuristic, attr))
         if not (ext.experiences or ext.educations or ext.projects):

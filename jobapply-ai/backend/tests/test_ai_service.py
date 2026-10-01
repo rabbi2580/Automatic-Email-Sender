@@ -227,6 +227,11 @@ def test_structured_profile_update_keeps_preferences(client):
         "work_authorization": "EU work authorization",
         "other_preferences": "Open to relocation",
         "languages": ["English", "German"],
+        "strengths": ["Strong communication"],
+        "achievements": ["Dean's List"],
+        "publications": ["Efficient Crop Classification"],
+        "extracurriculars": ["Youth Organization, Event Director"],
+        "references": ["Dr. Example, Example University, example@example.com"],
         "skills": [{"name": "Python"}],
     }
 
@@ -237,6 +242,11 @@ def test_structured_profile_update_keeps_preferences(client):
     assert prof["preferred_locations"] == ["Berlin", "Remote"]
     assert prof["work_preference"] == "remote"
     assert prof["location"] == "Remote, EU"
+    assert prof["strengths"] == ["Strong communication"]
+    assert prof["achievements"] == ["Dean's List"]
+    assert prof["publications"] == ["Efficient Crop Classification"]
+    assert prof["extracurriculars"] == ["Youth Organization, Event Director"]
+    assert prof["references"] == ["Dr. Example, Example University, example@example.com"]
     assert "target_roles" not in prof["completeness"]["missing"]
     assert "location" not in prof["completeness"]["missing"]
 

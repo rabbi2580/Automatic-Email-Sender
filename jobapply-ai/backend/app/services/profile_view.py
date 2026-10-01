@@ -12,8 +12,9 @@ def profile_snapshot(p: Profile) -> dict:
         "full_name": p.full_name, "email": p.email, "phone": p.phone, "location": p.location, "headline": p.headline, "summary": p.summary,
         "links": p.links or {}, "years_experience": p.years_experience, "target_roles": p.target_roles or [],
         "preferred_locations": p.preferred_locations or [], "work_preference": p.work_preference,
-        "languages": p.languages or [], "achievements": p.achievements or [], "publications": p.publications or [],
-        "extracurriculars": p.extracurriculars or [],
+        "languages": p.languages or [], "strengths": p.strengths or [], "achievements": p.achievements or [],
+        "publications": p.publications or [], "extracurriculars": p.extracurriculars or [],
+        "references": p.reference_contacts or [],
         "skills": [{"id": str(s.id), "name": s.name, "canonical": s.canonical, "category": s.category} for s in p.skills],
         "experiences": [{"id": str(e.id), "kind": e.kind, "company": e.company, "title": e.title, "location": e.location, "start_date": e.start_date,
                          "end_date": e.end_date, "is_current": e.is_current, "bullets": list(e.bullets or []), "technologies": list(e.technologies or [])}

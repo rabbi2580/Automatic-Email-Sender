@@ -13,20 +13,23 @@ from app.schemas.ai import (
 from app.services.parsing.skills import canonicalize, category_of, find_skills
 
 SECTION_ALIASES = {
-    "summary": ["summary", "professional summary", "profile", "objective", "career objective", "about me", "about"],
+    "contact": ["personal information contact information", "personal information", "contact information", "contact details"],
+    "summary": ["summary", "professional summary", "professional summary career objective", "profile", "objective", "career objective", "about me", "about"],
     "education": ["education", "academic background", "academic qualifications", "educational qualification", "educational qualifications", "academics"],
-    "experience": ["experience", "work experience", "professional experience", "employment", "employment history", "work history", "internship", "internships", "internship experience"],
+    "experience": ["experience", "work experience", "professional experience", "employment", "employment history", "work history"],
+    "internship": ["internship", "internships", "internship experience"],
+    "volunteer_experience": ["volunteer experience", "volunteering experience"],
     "projects": ["projects", "academic projects", "personal projects", "selected projects", "key projects", "project experience"],
     "research": ["research", "research experience", "research projects"],
-    "publications": ["publications", "papers", "research papers", "selected publications"],
+    "publications": ["publications", "papers", "research papers", "selected publications", "research publications"],
     "skills": ["skills", "technical skills", "key skills", "core competencies", "skills & tools", "skills and tools", "technologies", "tech stack", "technical expertise"],
     "certifications": ["certifications", "certificates", "licenses & certifications", "courses", "training", "licenses and certifications",
-                       "certifications & professional training", "certifications and professional training"],
-    "achievements": ["achievements", "awards", "honors", "honours", "awards & achievements", "awards and honors", "accomplishments", "scholarships"],
+                       "certifications courses", "certifications & professional training", "certifications and professional training"],
+    "achievements": ["achievements", "awards", "honors", "honours", "achievements awards", "awards & achievements", "awards and honors", "accomplishments", "scholarships"],
     "languages": ["languages", "language proficiency"],
     "extracurricular": ["extracurricular", "extracurricular activities", "extra curricular activities", "extra-curricular activities",
-                        "activities", "volunteer", "volunteering", "leadership", "co-curricular activities", "volunteer experience"],
-    "interests": ["strengths & interests", "strengths and interests", "strengths", "interests"],
+                        "activities", "volunteer", "volunteering", "leadership", "co-curricular activities"],
+    "strengths": ["strengths & interests", "strengths and interests", "strengths interests", "strengths", "interests"],
     "references": ["references"],
 }
 _HEADER_LOOKUP = {a: sec for sec, al in SECTION_ALIASES.items() for a in al}
@@ -351,7 +354,8 @@ def parse_cv_text(text: str, today: date | None = None) -> ProfileExtraction:
     text = _normalize_cv_text(text)
     today = today or date.today()
     header, sections = split_sections(text)
-    head_text = "\n".join(header[:15])
+    personal = header + sections.get("contact", [])
+    head_text = "\n".join(personal[:15])
     em = EMAIL_RE.search(head_text) or EMAIL_RE.search(text)
     email = em.group(0) if em else ""
     phone = ""
@@ -373,7 +377,7 @@ def parse_cv_text(text: str, today: date | None = None) -> ProfileExtraction:
             links["other"].append(u)
     # a leading item in "other" is the best portfolio guess only if user did not label it; keep as other.
     location = ""
-    for ln in header[:10]:
+    for ln in personal[:10]:
         m = re.search(r"(?:Address|Location)\s*[:\-]\s*(.+)", ln, re.I)
         if m:
             location = m.group(1).split("|")[0].strip()
@@ -386,6 +390,8 @@ def parse_cv_text(text: str, today: date | None = None) -> ProfileExtraction:
             break
 
     work = _parse_experience(sections.get("experience", []))
+    work += _parse_experience(sections.get("internship", []), default_kind="internship")
+    work += _parse_experience(sections.get("volunteer_experience", []), default_kind="volunteer")
     research_lines = sections.get("research", [])
     research = _parse_projects(research_lines, kind="research") if research_lines else []
     projects = _parse_projects(sections.get("projects", [])) + research
@@ -423,8 +429,9 @@ def parse_cv_text(text: str, today: date | None = None) -> ProfileExtraction:
             break
 
     return ProfileExtraction(
-        full_name=_name_from_header(header, email), email=email, phone=phone, location=location, headline=headline, summary=summary,
+        full_name=_name_from_header(personal, email), email=email, phone=phone, location=location, headline=headline, summary=summary,
         links={k: v for k, v in links.items() if v}, years_experience=_years_from_experiences(work, today),
         skills=list(skills_map.values()), experiences=work, educations=educations, projects=projects, certifications=certs,
-        languages=languages, achievements=plain("achievements"), publications=plain("publications"), extracurriculars=plain("extracurricular"),
+        languages=languages, strengths=plain("strengths"), achievements=plain("achievements"), publications=plain("publications"),
+        extracurriculars=plain("extracurricular"), references=plain("references"),
     )

@@ -94,9 +94,11 @@ class ProfileExtraction(_Lenient):
     projects: list[ProjectItem] = Field(default_factory=list)
     certifications: list[CertificationItem] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
     achievements: list[str] = Field(default_factory=list)
     publications: list[str] = Field(default_factory=list)
     extracurriculars: list[str] = Field(default_factory=list)
+    references: list[str] = Field(default_factory=list)
 
     @field_validator("full_name", "email", "phone", "location", "headline", "summary", mode="before")
     @classmethod
