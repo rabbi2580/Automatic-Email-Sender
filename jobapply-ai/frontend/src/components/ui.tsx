@@ -64,11 +64,16 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-5" onMouseDown={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}
-        className={cx("max-h-[90vh] w-full overflow-y-auto rounded-lg bg-white p-5 shadow-xl", wide ? "max-w-3xl" : "max-w-lg")}>
-        <div className="mb-3 flex items-start justify-between"><h3 className="text-lg font-semibold">{title}</h3><button aria-label="Close" className="text-slate-400 hover:text-slate-700" onClick={onClose}>✕</button></div>
-        {children}
+        className={cx("modal-panel flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl", wide ? "max-w-3xl" : "max-w-lg")}>
+        <div className="flex shrink-0 items-start justify-between border-b border-slate-200 px-5 py-4">
+          <h3 className="text-lg font-extrabold">{title}</h3>
+          <button aria-label="Close" className="rounded-lg px-2 py-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" onClick={onClose}>✕</button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
+import { useTheme } from "@/lib/theme";
 import { cx, Spinner } from "./ui";
 
 const NAV = [
@@ -14,6 +15,7 @@ const NAV = [
 export default function Shell({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
   const { t, locale, setLocale } = useI18n();
+  const { theme, toggle } = useTheme();
   const path = usePathname();
   const router = useRouter();
   useEffect(() => { if (!loading && !user) router.replace("/login"); }, [loading, user, router]);
@@ -31,14 +33,15 @@ export default function Shell({ children }: { children: ReactNode }) {
             <Link key={href} href={href} aria-current={path === href || (href !== "/dashboard" && path.startsWith(href)) ? "page" : undefined} className="app-nav-link">{t(key)}</Link>
           ))}
         </nav>
-        <div className="hidden space-y-2 px-4 py-3 md:block">
-          <select aria-label="Language" className="input" value={locale} onChange={(e) => setLocale(e.target.value as "en" | "bn")}><option value="en">English</option><option value="bn">বাংলা</option></select>
+        <div className="flex items-center gap-2 px-3 py-3 md:block md:space-y-2 md:px-4">
+          <select aria-label="Language" className="input min-w-0 flex-1" value={locale} onChange={(e) => setLocale(e.target.value as "en" | "bn")}><option value="en">English</option><option value="bn">বাংলা</option></select>
+          <button onClick={toggle} className="theme-toggle" aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}><span>{theme === "light" ? "☾" : "☀"}</span>{theme === "light" ? "Dark mode" : "Light mode"}</button>
           <button onClick={logout} className="app-logout">{t("nav.logout")}</button>
         </div>
       </aside>
       <main className="app-main flex-1 p-4 md:p-8">
         {!user.email_verified && <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Your email is not verified yet. You can prepare applications, but sending requires a verified email.</div>}
-        <div className="mx-auto max-w-6xl space-y-4">{children}</div>
+        <div className="page-motion mx-auto max-w-6xl space-y-4">{children}</div>
         <p className="app-disclaimer mx-auto mt-8 max-w-6xl text-xs">{t("disclaimer")}</p>
       </main>
     </div>

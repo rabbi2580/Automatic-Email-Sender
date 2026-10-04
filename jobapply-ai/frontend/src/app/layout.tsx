@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { AuthProvider } from "@/lib/auth";
 import { I18nProvider } from "@/lib/i18n";
+import { ThemeProvider } from "@/lib/theme";
 import { ToastProvider } from "@/components/ui";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body><I18nProvider><AuthProvider><ToastProvider>{children}</ToastProvider></AuthProvider></I18nProvider></body>
+      <body><ThemeProvider><I18nProvider><AuthProvider><ToastProvider>{children}</ToastProvider></AuthProvider></I18nProvider></ThemeProvider></body>
     </html>
   );
 }
