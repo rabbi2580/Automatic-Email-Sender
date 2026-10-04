@@ -53,6 +53,8 @@ def create_app() -> FastAPI:
             "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
             "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" if not request.url.path.startswith(("/docs", "/redoc")) else "default-src 'self' 'unsafe-inline' cdn.jsdelivr.net data:",
         })
+        if request.url.path.startswith(("/api/", "/admin/")):
+            resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
         if s.is_production():
             resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         if not request.url.path.startswith("/api/v1/files/"):

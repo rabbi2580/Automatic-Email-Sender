@@ -11,6 +11,7 @@ export default function CVs() {
   const list = useLoad(() => api<Resume[]>("/resumes"));
   const versions = useLoad(() => api<Version[]>("/resumes/versions"));
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [err, setErr] = useState<unknown>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -34,9 +35,12 @@ export default function CVs() {
   return (
     <>
       <h1 className="text-xl font-bold">My CVs</h1>
-      <Card title="Upload a CV" actions={<Button disabled={busy} onClick={() => input.current?.click()}>{busy ? "Uploading…" : "Choose PDF / DOCX"}</Button>}>
+      <Card title="Upload a CV" actions={<Button disabled={busy} onClick={() => input.current?.click()}>{busy ? "Parsing…" : "Choose PDF / DOCX"}</Button>}>
         <input ref={input} type="file" hidden accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
-        <p className="text-sm text-slate-600">Your original file is stored unchanged. We extract a structured profile from it; tailored CVs are built only from facts in that profile.</p>
+        <button type="button" onClick={() => input.current?.click()} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files[0]; if (file) upload(file); }} className={`w-full rounded-2xl border-2 border-dashed p-8 text-center transition ${dragging ? "border-brand-500 bg-brand-50" : "border-slate-300 bg-slate-50/70 hover:border-brand-300 hover:bg-brand-50/50"}`}>
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-100 text-2xl text-brand-700">↑</span><span className="mt-3 block font-bold">Drop your CV here</span><span className="mt-1 block text-sm text-slate-500">or choose a PDF / DOCX file · up to 10 MB</span>
+        </button>
+        <p className="mt-3 text-sm text-slate-600">Your original file is stored unchanged. We extract a structured profile from it; tailored CVs are built only from facts in that profile.</p>
         <div className="mt-2"><ErrorBox error={err} /></div>
       </Card>
       <Card title="Uploaded CVs">

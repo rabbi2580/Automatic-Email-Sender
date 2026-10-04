@@ -36,6 +36,9 @@ def profile_out(db: Session, p: Profile) -> dict:
     snap = profile_snapshot(p)
     snap.update({"salary_expectation": p.salary_expectation, "work_authorization": p.work_authorization, "other_preferences": p.other_preferences,
                  "completeness": _completeness(p), "source_resume_id": str(p.source_resume_id) if p.source_resume_id else None})
+    checks = _completeness(p)
+    snap["parse_quality"] = {"score": checks["percent"], "label": "strong" if checks["percent"] >= 80 else "review" if checks["percent"] >= 50 else "needs_review",
+                              "missing": checks["missing"], "message": "Review highlighted fields before applying." if checks["missing"] else "Your profile is ready to use."}
     master = db.scalar(select(Resume).where(Resume.user_id == p.user_id, Resume.deleted_at.is_(None)).order_by(Resume.created_at.desc()))
     snap["resume"] = resume_out(master) if master else None
     return snap

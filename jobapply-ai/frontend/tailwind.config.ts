@@ -3,7 +3,7 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      colors: { brand: { 50: "#eaf5f0", 100: "#d1e9df", 500: "#18836c", 600: "#126c59", 700: "#0e5547" } },
+      colors: { brand: { 50: "#eef2ff", 100: "#e0e7ff", 300: "#a5b4fc", 500: "#6366f1", 600: "#4f46e5", 700: "#3730a3" } },
     },
   },
   plugins: [],

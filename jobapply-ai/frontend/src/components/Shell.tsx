@@ -18,7 +18,7 @@ export default function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   useEffect(() => { if (!loading && !user) router.replace("/login"); }, [loading, user, router]);
   if (loading || !user) return <Spinner />;
-  const items: (readonly [string, string])[] = [...NAV, ...(user.role === "admin" ? [["/admin", "nav.admin"] as const] : [])];
+  const items: (readonly [string, string])[] = [...NAV];
   return (
     <div className="min-h-screen md:flex">
       <aside className="app-sidebar border-b md:min-h-screen md:w-64 md:border-b-0 md:border-r">

@@ -6,6 +6,7 @@ import { Badge, Button, Card, ErrorBox, Field, ScoreBar, Spinner, useLoad, useTo
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type P = any;
+const DRAFT_KEY = "jobapply.profile.draft.v1";
 const csv = (a?: string[]) => (a || []).join(", ");
 const unCsv = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const lines = (a?: string[]) => (a || []).join("\n");
@@ -17,10 +18,30 @@ export default function Profile() {
   const [p, setP] = useState<P | null>(null);
   const [saving, setSaving] = useState(false);
   const [skill, setSkill] = useState("");
-  useEffect(() => { if (data) setP(JSON.parse(JSON.stringify(data))); }, [data]);
+  const [draft, setDraft] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (!data) return;
+    try {
+      const saved = sessionStorage.getItem(DRAFT_KEY);
+      if (saved) { setP(JSON.parse(saved)); setDraft(true); return; }
+    } catch { /* storage can be unavailable or contain an old draft */ }
+    setP(JSON.parse(JSON.stringify(data)));
+  }, [data]);
+  useEffect(() => {
+    if (!p || !dirty) return;
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(p)); } catch { /* best effort */ }
+  }, [p, dirty]);
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
+    const shortcut = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); void save(); } };
+    window.addEventListener("beforeunload", warn);
+    window.addEventListener("keydown", shortcut);
+    return () => { window.removeEventListener("beforeunload", warn); window.removeEventListener("keydown", shortcut); };
+  }, [dirty]);
   if (loading || !p) return error ? <ErrorBox error={error} onRetry={reload} /> : <Spinner />;
 
-  const set = (k: string, v: any) => setP({ ...p, [k]: v });
+  const set = (k: string, v: any) => { setP({ ...p, [k]: v }); setDirty(true); };
   const setItem = (key: string, i: number, patch: any) => set(key, p[key].map((x: any, j: number) => (j === i ? { ...x, ...patch } : x)));
   const rm = (key: string, i: number) => set(key, p[key].filter((_: any, j: number) => j !== i));
 
@@ -32,6 +53,8 @@ export default function Profile() {
         skills: p.skills.map((s: any) => ({ name: s.name, category: s.category || "technical" })),
       };
       await api("/profile/structured", { method: "PUT", body });
+      try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+      setDraft(false); setDirty(false);
       toast("Profile saved. Matches were recomputed.");
       await reload();
     } catch (e) { toast((e as Error).message, "err"); }
@@ -73,7 +96,8 @@ export default function Profile() {
         <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button>
       </div>
       {!p.resume && <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">No CV uploaded yet. <Link className="underline" href="/cvs">Upload one</Link> to fill this in automatically, or enter details by hand.</div>}
-      <Card className="profile-completion" title={`Profile completeness: ${c.percent}%`}><ScoreBar value={c.percent} />{c.missing.length > 0 && <p className="mt-2 text-xs text-slate-500">Missing: {c.missing.join(", ").replace(/_/g, " ")}</p>}</Card>
+      {draft && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><span>Recovered an unsaved draft from this browser.</span><Button variant="ghost" onClick={() => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } setDraft(false); setDirty(false); setP(JSON.parse(JSON.stringify(data))); }}>Discard draft</Button></div>}
+      <Card className="profile-completion" title={`Profile completeness: ${c.percent}%`}><ScoreBar value={c.percent} />{c.missing.length > 0 && <p className="mt-2 text-xs text-slate-500">Missing: {c.missing.join(", ").replace(/_/g, " ")}</p>}{dirty && <p className="mt-2 text-xs font-medium text-amber-700">Draft saved locally · click Save profile to sync changes.</p>}</Card>
 
       <Card title="Personal Information / Contact Information">
         <div className="grid gap-3 md:grid-cols-2">
