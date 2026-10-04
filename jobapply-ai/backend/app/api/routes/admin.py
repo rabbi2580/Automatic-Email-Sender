@@ -4,10 +4,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import hashlib
+import csv
+import io
 import secrets
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -24,6 +26,7 @@ from app.schemas.api import LoginIn
 from app.services import usage
 from app.services.audit import audit
 from app.services.storage import get_storage
+from app.workers.dispatch import enqueue
 
 auth_router = APIRouter(prefix="/admin", tags=["admin-auth"])
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -72,6 +75,12 @@ class UserAdminPatch(BaseModel):
     plan: str | None = Field(default=None, pattern="^(free|pro|business)$")
 
 
+class UserAdminBulk(BaseModel):
+    user_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+    is_active: bool | None = None
+    flagged_reason: str | None = Field(default=None, max_length=255)
+
+
 class FlagIn(BaseModel):
     key: str = Field(min_length=2, max_length=60, pattern="^[a-z0-9_.-]+$")
     enabled: bool
@@ -104,6 +113,20 @@ def health(db: Session = Depends(get_db)):
             "sends_24h": {("ok" if k else "failed"): v for k, v in sends}}
 
 
+@router.get("/analytics")
+def analytics(db: Session = Depends(get_db)):
+    """Small operational dashboard query set; returns counts only, never CV contents."""
+    now = datetime.now(timezone.utc)
+    day_ago = now - timedelta(days=1)
+    week_ago = now - timedelta(days=7)
+    users = lambda since=None: db.scalar(select(func.count()).select_from(User).where(User.deleted_at.is_(None), *( [User.created_at >= since] if since else [] ))) or 0
+    resumes = lambda status=None: db.scalar(select(func.count()).select_from(Resume).where(Resume.deleted_at.is_(None), *([Resume.status == status] if status else []))) or 0
+    return {"users": {"total": users(), "last_24h": users(day_ago), "last_7d": users(week_ago)},
+            "cvs": {"total": resumes(), "completed": resumes("completed"), "needs_review": resumes("requires_review"), "failed": resumes("failed"), "queued": resumes("queued"), "processing": resumes("processing")},
+            "parse_success_rate": round((resumes("completed") + resumes("requires_review")) / resumes() * 100, 1) if resumes() else 0.0,
+            "generated_at": now.isoformat()}
+
+
 @router.get("/users")
 def users(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
     rows = db.execute(select(User, Subscription.plan).outerjoin(Subscription, Subscription.user_id == User.id).where(User.deleted_at.is_(None)).order_by(User.created_at.desc()).limit(min(limit, 200)).offset(offset)).all()
@@ -115,6 +138,31 @@ def users(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
                         "applications": db.scalar(select(func.count()).select_from(Application).where(Application.user_id == u.id)) or 0,
                         "resumes": db.scalar(select(func.count()).select_from(Resume).where(Resume.user_id == u.id, Resume.deleted_at.is_(None))) or 0}})
     return out
+
+
+@router.patch("/users/bulk")
+def bulk_users(body: UserAdminBulk, request: Request, admin: Admin = Depends(require_admin), db: Session = Depends(get_db)):
+    rows = db.scalars(select(User).where(User.id.in_(body.user_ids), User.deleted_at.is_(None))).all()
+    if body.is_active is None and body.flagged_reason is None:
+        raise HTTPException(422, "Provide an action to apply.")
+    for u in rows:
+        if body.is_active is not None:
+            u.is_active = body.is_active
+        if body.flagged_reason is not None:
+            u.flagged_reason = body.flagged_reason or None
+    audit(db, None, "admin.users_bulk_update", request=request, admin_id=str(admin.id), count=len(rows))
+    db.commit()
+    return {"updated": len(rows)}
+
+
+@router.get("/users.csv")
+def export_users_csv(db: Session = Depends(get_db)):
+    rows = db.scalars(select(User).where(User.deleted_at.is_(None)).order_by(User.created_at.desc())).all()
+    out = io.StringIO(); writer = csv.writer(out)
+    writer.writerow(["id", "email", "full_name", "active", "verified", "created_at"])
+    for u in rows:
+        writer.writerow([str(u.id), u.email, u.full_name, u.is_active, u.email_verified, u.created_at.isoformat()])
+    return StreamingResponse(iter([out.getvalue()]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=users.csv"})
 
 
 @router.patch("/users/{user_id}")
@@ -187,6 +235,25 @@ def cvs(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
     return [{"id": str(r.id), "user_id": str(r.user_id), "filename": r.filename, "content_type": r.content_type,
              "size_bytes": r.size_bytes, "status": r.status, "status_reason": r.status_reason,
              "created_at": r.created_at.isoformat()} for r in rows]
+
+
+@router.get("/parse-errors")
+def parse_errors(db: Session = Depends(get_db)):
+    rows = db.scalars(select(Resume).where(Resume.deleted_at.is_(None), Resume.status == "failed").order_by(Resume.updated_at.desc()).limit(100)).all()
+    return [{"id": str(r.id), "user_id": str(r.user_id), "filename": r.filename, "reason": r.status_reason,
+             "updated_at": r.updated_at.isoformat()} for r in rows]
+
+
+@router.post("/cvs/{resume_id}/retry")
+def retry_cv(resume_id: uuid.UUID, db: Session = Depends(get_db)):
+    r = db.scalar(select(Resume).where(Resume.id == resume_id, Resume.deleted_at.is_(None)))
+    if not r:
+        raise HTTPException(404, "Not found")
+    if r.status not in ("failed", "requires_review"):
+        raise HTTPException(409, "Only failed or review-required CVs can be retried.")
+    r.status, r.status_reason = "queued", None
+    db.commit(); enqueue("process_resume", str(r.id))
+    return {"queued": True, "id": str(r.id)}
 
 
 @router.get("/cvs/{resume_id}")

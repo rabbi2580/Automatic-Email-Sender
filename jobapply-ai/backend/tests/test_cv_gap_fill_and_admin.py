@@ -27,5 +27,9 @@ def test_admin_has_independent_login_and_csrf(client, db):
     data = login.json()
     assert data["access_token"] and data["csrf_token"]
     assert client.get("/api/v1/admin/health", headers={"Authorization": f"Bearer {data['access_token']}"}).status_code == 200
+    analytics = client.get("/api/v1/admin/analytics", headers={"Authorization": f"Bearer {data['access_token']}"})
+    assert analytics.status_code == 200 and "parse_success_rate" in analytics.json()
+    exported = client.get("/api/v1/admin/users.csv", headers={"Authorization": f"Bearer {data['access_token']}"})
+    assert exported.status_code == 200 and "email" in exported.text
     assert client.get("/api/v1/admin/health").status_code == 403
     assert client.get("/api/v1/admin/health", headers={"X-CSRF-Token": data["csrf_token"]}).status_code == 200
