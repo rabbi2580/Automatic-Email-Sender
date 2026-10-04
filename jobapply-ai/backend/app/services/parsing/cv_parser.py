@@ -5,6 +5,7 @@ Everything returned is copied/normalised from the CV text; nothing is invented.
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date
 
 from app.schemas.ai import (
@@ -62,6 +63,7 @@ LEVELS = [
 def _normalize_cv_text(text: str) -> str:
     if not text:
         return text
+    text = unicodedata.normalize("NFC", text)
     replacements = {
         "â€“": "-",
         "â€”": "-",
@@ -283,6 +285,8 @@ def _is_strength_statement(line: str) -> bool:
 
 
 def _is_project_heading(line: str) -> bool:
+    if _is_bullet(line) or line.lstrip().startswith(("â€¢", "Â•")):
+        return False
     text = re.sub(r"^\s*#{1,6}\s*", "", line).strip()
     key = re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
     if (not text or key in _PROJECT_CATEGORY_LABELS or _is_strength_statement(text)
@@ -418,8 +422,10 @@ def _name_from_header(header: list[str], email: str) -> str:
         if not s or EMAIL_RE.search(s) or URL_RE.search(s) or re.search(r"\d{4,}", s):
             continue
         words = s.replace(",", " ").split()
-        if 1 < len(words) <= 5 and all(re.fullmatch(r"[A-Za-z.'\-]+", w) for w in words):
-            return " ".join(w.capitalize() if w.isupper() else w for w in words)
+        if 1 < len(words) <= 5 and all(any(ch.isalpha() for ch in w) and not any(ch.isdigit() for ch in w) for w in words):
+            # Do not title-case non-Latin names (Bangla and other scripts have
+            # no useful upper/lower distinction).
+            return " ".join(w.capitalize() if w.isascii() and w.isupper() else w for w in words)
     if email:
         local = email.split("@")[0]
         parts = [p for p in re.split(r"[._\-0-9]+", local) if p]

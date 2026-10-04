@@ -7,8 +7,8 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.ratelimit import limiter
-from app.core.security import create_access_token
-from app.models import RefreshToken, User
+from app.core.security import create_access_token, hash_password, create_admin_access_token
+from app.models import Admin, RefreshToken, User
 from tests.helpers import PASSWORD, register
 
 
@@ -150,10 +150,10 @@ def test_admin_endpoints_require_admin_role(client, db):
     headers, _ = register(client, "u@example.com")
     for path in ("/health", "/users", "/usage", "/ai", "/limits", "/feature-flags", "/delivery-failures", "/audit-log", "/errors", "/integrations"):
         assert client.get(f"/api/v1/admin{path}", headers=headers).status_code == 403, path
-    u = db.scalar(select(User).where(User.email == "u@example.com"))
-    u.role = "admin"
+    admin = Admin(email="admin@example.com", password_hash=hash_password(PASSWORD))
+    db.add(admin)
     db.commit()
-    h2 = {"Authorization": f"Bearer {create_access_token(u.id, 'admin')}"}
+    h2 = {"Authorization": f"Bearer {create_admin_access_token(admin.id)}"}
     assert client.get("/api/v1/admin/health", headers=h2).json()["database"] is True
 
 
@@ -163,10 +163,10 @@ def test_admin_api_never_exposes_private_content(client, db):
     headers, _ = register(client, "p@example.com")
     upload_cv(client, headers)
     client.post("/api/v1/jobs", headers=headers, json={"text": "Junior Software Engineer\nCompany: Secret Corp Ltd\nRequirements: Python\nSend CV to hr@secret.com"})
-    admin = db.scalar(select(User).where(User.email == "p@example.com"))
-    admin.role = "admin"
+    admin = Admin(email="admin@example.com", password_hash=hash_password(PASSWORD))
+    db.add(admin)
     db.commit()
-    h = {"Authorization": f"Bearer {create_access_token(admin.id, 'admin')}"}
+    h = {"Authorization": f"Bearer {create_admin_access_token(admin.id)}"}
     blob = ""
     for path in ("/health", "/users", "/usage", "/ai", "/delivery-failures", "/audit-log", "/errors", "/integrations"):
         blob += client.get(f"/api/v1/admin{path}", headers=h).text

@@ -32,6 +32,25 @@ class User(Base, UUIDPk, Timestamps, SoftDelete):
     profile = relationship("Profile", uselist=False, back_populates="user", cascade="all, delete-orphan")
 
 
+class Admin(Base, UUIDPk, Timestamps):
+    """Back-office identity. It intentionally has no relationship to User or RefreshToken."""
+    __tablename__ = "admins"
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AdminSession(Base, UUIDPk):
+    __tablename__ = "admin_sessions"
+    admin_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("admins.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    csrf_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class RefreshToken(Base, UUIDPk):
     __tablename__ = "refresh_tokens"
     user_id: Mapped[uuid.UUID] = owner_fk()

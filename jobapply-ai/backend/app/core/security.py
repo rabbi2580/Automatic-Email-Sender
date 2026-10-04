@@ -63,3 +63,19 @@ def decode_access_token(token: str) -> dict | None:
 
 def new_refresh_token() -> str:
     return secrets.token_urlsafe(48)
+
+
+def create_admin_access_token(admin_id: uuid.UUID) -> str:
+    s = get_settings()
+    now = datetime.now(timezone.utc)
+    return jwt.encode({"sub": str(admin_id), "type": "admin_access", "iss": "jobapply-admin",
+                       "iat": now, "exp": now + timedelta(minutes=s.admin_session_minutes),
+                       "jti": secrets.token_hex(16)}, s.admin_secret_key, algorithm="HS256")
+
+
+def decode_admin_access_token(token: str) -> dict | None:
+    try:
+        data = jwt.decode(token, get_settings().admin_secret_key, algorithms=["HS256"], issuer="jobapply-admin")
+    except jwt.PyJWTError:
+        return None
+    return data if data.get("type") == "admin_access" else None

@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     secret_key: str = "dev-only-change-me-dev-only-change-me-0123456789"
     encryption_key: str = ""  # urlsafe base64 32 bytes (Fernet). Generated for dev if empty.
     access_token_minutes: int = 15
+    admin_session_minutes: int = 30
+    admin_secret_key: str = "dev-only-admin-secret-change-me-0123456789"
     refresh_token_days: int = 30
     signed_url_seconds: int = 300
     confirmation_token_minutes: int = 15
@@ -90,6 +92,8 @@ def get_settings() -> Settings:
     if s.is_production():
         if s.secret_key.startswith("dev-only") or len(s.secret_key) < 32:
             raise RuntimeError("SECRET_KEY must be set to a strong random value in production")
+        if s.admin_secret_key.startswith("dev-only") or len(s.admin_secret_key) < 32:
+            raise RuntimeError("ADMIN_SECRET_KEY must be set to a strong random value in production")
         if not s.encryption_key:
             raise RuntimeError("ENCRYPTION_KEY must be set in production")
     return s

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import uuid
+import hashlib
+import secrets
+from datetime import datetime, timezone
 from typing import TypeVar
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.security import decode_access_token
-from app.models import User
+from app.core.security import decode_access_token, decode_admin_access_token
+from app.models import Admin, AdminSession, User
 
 bearer = HTTPBearer(auto_error=False)
 M = TypeVar("M")
@@ -32,10 +36,33 @@ def get_current_user(request: Request, creds: HTTPAuthorizationCredentials | Non
     return user
 
 
-def require_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role != "admin":
+def require_admin(request: Request, creds: HTTPAuthorizationCredentials | None = Depends(bearer), db: Session = Depends(get_db)) -> Admin:
+    """Authenticate only the independent admin principal/token.
+
+    Cookie sessions require a double-submit CSRF token; bearer admin tokens do
+    not use cookies and therefore are not CSRF ambient credentials.
+    """
+    admin = None
+    if creds:
+        data = decode_admin_access_token(creds.credentials)
+        if data:
+            try:
+                admin = db.get(Admin, uuid.UUID(data["sub"]))
+            except (ValueError, KeyError):
+                admin = None
+    else:
+        raw = request.cookies.get("admin_session")
+        if raw:
+            row = db.scalar(select(AdminSession).where(AdminSession.token_hash == hashlib.sha256(raw.encode()).hexdigest()))
+            now = datetime.now(timezone.utc)
+            exp = row.expires_at.replace(tzinfo=timezone.utc) if row and row.expires_at.tzinfo is None else (row.expires_at if row else now)
+            csrf = request.headers.get("X-CSRF-Token", "")
+            if row and not row.revoked_at and exp > now and secrets.compare_digest(row.csrf_hash, hashlib.sha256(csrf.encode()).hexdigest()):
+                admin = db.get(Admin, row.admin_id)
+    if not admin or not admin.is_active:
         raise HTTPException(403, "Administrator access required")
-    return user
+    request.state.admin_id = str(admin.id)
+    return admin
 
 
 def get_owned(db: Session, model: type[M], obj_id: uuid.UUID | str, user: User, *, allow_deleted: bool = False) -> M:

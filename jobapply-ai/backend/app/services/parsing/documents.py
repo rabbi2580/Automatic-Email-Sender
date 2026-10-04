@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from app.core.config import get_settings
@@ -48,7 +49,15 @@ def check_size(data: bytes) -> None:
 
 
 def clean_text(text: str) -> str:
-    text = text.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n")
+    text = unicodedata.normalize("NFC", text.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n"))
+    # Common UTF-8-as-Windows-1252 corruption from copy/paste/export tools.
+    if any(mark in text for mark in ("â", "Â", "ðŸ")):
+        try:
+            repaired = text.encode("latin1").decode("utf-8")
+            if sum(text.count(x) for x in ("â", "Â", "ðŸ")) > sum(repaired.count(x) for x in ("â", "Â", "ðŸ")):
+                text = repaired
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
     text = re.sub(r"[ \t ]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
@@ -65,7 +74,18 @@ def _pdf_text(data: bytes) -> tuple[str, int]:
                 reader.decrypt("")
             except Exception:
                 raise DocumentError("The PDF is password-protected. Remove the password and upload again.", "encrypted")
-        pages = [(p.extract_text() or "") for p in reader.pages]
+        # pdfplumber preserves line positioning better than pypdf for columns,
+        # tables and mixed Unicode fonts. Keep pypdf as a dependency-light
+        # fallback because some PDFs have malformed layout metadata.
+        pages = []
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(data)) as pdf:
+                pages = [(p.extract_text(layout=True) or "") for p in pdf.pages]
+        except Exception:  # noqa: BLE001
+            pages = [(p.extract_text() or "") for p in reader.pages]
+        if not any(p.strip() for p in pages):
+            pages = [(p.extract_text() or "") for p in reader.pages]
     except DocumentError:
         raise
     except (PdfReadError, Exception) as exc:  # noqa: BLE001

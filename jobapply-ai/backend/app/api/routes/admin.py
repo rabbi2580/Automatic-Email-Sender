@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import hashlib
+import secrets
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -11,13 +15,55 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.deps import require_admin
+from app.core.ratelimit import rate_limit
+from app.core.security import create_admin_access_token, hash_password, validate_password_strength, verify_password
 from app.models import (
-    AIRequestLog, Application, AuditLog, EmailAccount, FeatureFlag, Job, PlanLimit, Resume, SendLog, Subscription, UsageRecord, User,
+    AIRequestLog, Admin, AdminSession, Application, AuditLog, EmailAccount, FeatureFlag, Job, PlanLimit, Resume, SendLog, Subscription, UsageRecord, User,
 )
+from app.schemas.api import LoginIn
 from app.services import usage
 from app.services.audit import audit
+from app.services.storage import get_storage
 
+auth_router = APIRouter(prefix="/admin", tags=["admin-auth"])
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+
+
+@auth_router.post("/login", dependencies=[Depends(rate_limit("admin-auth", 10))])
+def admin_login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    email = body.email.lower().strip()
+    password = body.password
+    # Avoid a distinct response for unknown accounts.
+    admin = db.scalar(select(Admin).where(Admin.email == email))
+    if not admin or not admin.is_active or not verify_password(password, admin.password_hash):
+        raise HTTPException(401, "Incorrect email or password.")
+    raw = secrets.token_urlsafe(48)
+    csrf = secrets.token_urlsafe(32)
+    db.add(AdminSession(admin_id=admin.id, token_hash=hashlib.sha256(raw.encode()).hexdigest(),
+                        csrf_hash=hashlib.sha256(csrf.encode()).hexdigest(),
+                        expires_at=datetime.now(timezone.utc) + timedelta(minutes=get_settings().admin_session_minutes)))
+    admin.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    response = JSONResponse({"access_token": create_admin_access_token(admin.id), "token_type": "bearer", "csrf_token": csrf,
+                             "expires_in": get_settings().admin_session_minutes * 60})
+    response.set_cookie("admin_session", raw, httponly=True, secure=get_settings().is_production(),
+                        samesite="strict", max_age=get_settings().admin_session_minutes * 60, path="/api/v1/admin")
+    return response
+
+
+@auth_router.post("/logout", status_code=204)
+def admin_logout(request: Request, db: Session = Depends(get_db), _admin: Admin = Depends(require_admin)):
+    raw = request.cookies.get("admin_session")
+    if raw:
+        row = db.scalar(select(AdminSession).where(AdminSession.token_hash == hashlib.sha256(raw.encode()).hexdigest()))
+        if row:
+            row.revoked_at = datetime.now(timezone.utc)
+            db.commit()
+
+
+@auth_router.get("/login", include_in_schema=False)
+def admin_login_page():
+    return {"detail": "Use the admin web client to sign in."}
 
 
 class UserAdminPatch(BaseModel):
@@ -72,7 +118,7 @@ def users(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
 
 
 @router.patch("/users/{user_id}")
-def patch_user(user_id: str, body: UserAdminPatch, request: Request, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+def patch_user(user_id: str, body: UserAdminPatch, request: Request, admin: Admin = Depends(require_admin), db: Session = Depends(get_db)):
     import uuid
 
     try:
@@ -92,7 +138,7 @@ def patch_user(user_id: str, body: UserAdminPatch, request: Request, admin: User
             sub.plan = d["plan"]
         else:
             db.add(Subscription(user_id=u.id, plan=d["plan"]))
-    audit(db, admin.id, "admin.user_update", entity_type="user", entity_id=u.id, request=request, fields=sorted(d))
+    audit(db, None, "admin.user_update", entity_type="user", entity_id=u.id, request=request, admin_id=str(admin.id), fields=sorted(d))
     db.commit()
     return {"ok": True}
 
@@ -134,6 +180,37 @@ def errors(db: Session = Depends(get_db)):
     return [{"job_id": str(j.id), "reason": j.status_reason, "at": j.updated_at.isoformat(), "source": j.source} for j in rows]
 
 
+@router.get("/cvs")
+def cvs(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+    rows = db.scalars(select(Resume).where(Resume.deleted_at.is_(None)).order_by(Resume.created_at.desc())
+                      .limit(min(max(limit, 1), 200)).offset(max(offset, 0))).all()
+    return [{"id": str(r.id), "user_id": str(r.user_id), "filename": r.filename, "content_type": r.content_type,
+             "size_bytes": r.size_bytes, "status": r.status, "status_reason": r.status_reason,
+             "created_at": r.created_at.isoformat()} for r in rows]
+
+
+@router.get("/cvs/{resume_id}")
+def cv_detail(resume_id: uuid.UUID, db: Session = Depends(get_db)):
+    r = db.scalar(select(Resume).where(Resume.id == resume_id, Resume.deleted_at.is_(None)))
+    if not r:
+        raise HTTPException(404, "Not found")
+    # Deliberately metadata-only: extracted CV contents are private user data.
+    return {"id": str(r.id), "user_id": str(r.user_id), "filename": r.filename, "content_type": r.content_type,
+            "size_bytes": r.size_bytes, "status": r.status, "status_reason": r.status_reason,
+            "has_extracted_text": bool(r.extracted_text), "created_at": r.created_at.isoformat()}
+
+
+@router.delete("/cvs/{resume_id}", status_code=204)
+def delete_cv(resume_id: uuid.UUID, request: Request, db: Session = Depends(get_db)):
+    r = db.scalar(select(Resume).where(Resume.id == resume_id, Resume.deleted_at.is_(None)))
+    if not r:
+        raise HTTPException(404, "Not found")
+    get_storage().delete(r.storage_key)
+    r.deleted_at, r.extracted_text, r.status = datetime.now(timezone.utc), "", "deleted"
+    audit(db, None, "admin.cv_delete", entity_type="resume", entity_id=r.id, request=request)
+    db.commit()
+
+
 @router.get("/audit-log")
 def audit_log(limit: int = 100, db: Session = Depends(get_db)):
     rows = db.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(min(limit, 500))).all()
@@ -146,13 +223,13 @@ def flags(db: Session = Depends(get_db)):
 
 
 @router.put("/feature-flags")
-def put_flag(body: FlagIn, request: Request, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+def put_flag(body: FlagIn, request: Request, admin: Admin = Depends(require_admin), db: Session = Depends(get_db)):
     f = db.scalar(select(FeatureFlag).where(FeatureFlag.key == body.key))
     if not f:
         f = FeatureFlag(key=body.key)
         db.add(f)
     f.enabled, f.description = body.enabled, body.description
-    audit(db, admin.id, "admin.flag", request=request, key=body.key, enabled=body.enabled)
+    audit(db, None, "admin.flag", request=request, admin_id=str(admin.id), key=body.key, enabled=body.enabled)
     db.commit()
     return {"ok": True}
 
@@ -163,7 +240,7 @@ def limits(db: Session = Depends(get_db)):
 
 
 @router.put("/limits")
-def put_limit(body: LimitIn, request: Request, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+def put_limit(body: LimitIn, request: Request, admin: Admin = Depends(require_admin), db: Session = Depends(get_db)):
     if body.metric not in usage.DEFAULT_LIMITS:
         raise HTTPException(422, f"Unknown metric. Valid: {sorted(usage.DEFAULT_LIMITS)}")
     row = db.scalar(select(PlanLimit).where(PlanLimit.plan == body.plan, PlanLimit.metric == body.metric))
@@ -171,6 +248,6 @@ def put_limit(body: LimitIn, request: Request, admin: User = Depends(require_adm
         row.limit_value = body.limit_value
     else:
         db.add(PlanLimit(plan=body.plan, metric=body.metric, period=usage.DEFAULT_LIMITS[body.metric][0], limit_value=body.limit_value))
-    audit(db, admin.id, "admin.limit", request=request, plan=body.plan, metric=body.metric, value=body.limit_value)
+    audit(db, None, "admin.limit", request=request, admin_id=str(admin.id), plan=body.plan, metric=body.metric, value=body.limit_value)
     db.commit()
     return {"ok": True}

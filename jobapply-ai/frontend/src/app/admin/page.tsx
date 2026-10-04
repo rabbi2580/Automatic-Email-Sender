@@ -19,7 +19,7 @@ export default function AdminDashboard() {
     Promise.all([request<User[]>("/admin/users"), request<Cv[]>("/admin/cvs")]).then(([u, c]) => { setUsers(u); setCvs(c); }).catch(e => setError(e.message)); // eslint-disable-line react-hooks/exhaustive-deps
   }, []);
   async function remove(id: string) { if (!confirm("Delete this CV?")) return; await request(`/admin/cvs/${id}`, { method: "DELETE" }); setCvs(v => v.filter(x => x.id !== id)); }
-  return <main className="space-y-4 p-6"><h1 className="text-2xl font-bold">Admin dashboard</h1>{error && <p className="text-red-600">{error}</p>}
+  return <main className="mx-auto max-w-5xl space-y-4 p-6"><h1 className="text-2xl font-bold">Admin dashboard</h1>{error && <p className="text-red-600">{error}</p>}
     <section className="rounded border bg-white p-4"><h2 className="mb-2 font-semibold">Users</h2><ul>{users.map(u => <li key={u.id} className="border-t py-1">{u.email} · {u.is_active ? "active" : "disabled"}</li>)}</ul></section>
     <section className="rounded border bg-white p-4"><h2 className="mb-2 font-semibold">CVs</h2><ul>{cvs.map(c => <li key={c.id} className="flex justify-between border-t py-1">{c.filename} · {c.status}<button className="text-red-600" onClick={() => remove(c.id)}>Delete</button></li>)}</ul></section>
   </main>;

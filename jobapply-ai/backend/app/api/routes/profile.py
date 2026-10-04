@@ -60,7 +60,7 @@ def patch_profile(body: ProfilePatch, user: User = Depends(get_current_user), db
 def replace_structured(body: ProfileExtraction, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Full replacement of the structured profile (used by the profile editor). Does not touch the original CV file."""
     p = _profile(db, user)
-    pipeline.apply_extraction(db, user, body, None, overwrite_scalars=True)
+    pipeline.apply_extraction(db, user, body, None, overwrite_scalars=True, overwrite_collections=True)
     audit(db, user.id, "profile.replace", entity_type="profile", entity_id=p.id)
     db.commit()
     for job in db.scalars(select(Job).where(Job.user_id == user.id, Job.deleted_at.is_(None), Job.status.in_(("completed", "requires_review")))).all():

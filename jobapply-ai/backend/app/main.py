@@ -63,7 +63,7 @@ def create_app() -> FastAPI:
 
     from app.api.routes import admin, applications, auth, email_accounts, files, jobs, matches, misc, profile, resumes
 
-    for r in (auth.router, profile.router, resumes.router, jobs.router, matches.router, applications.router, email_accounts.router, misc.router, files.router, admin.router):
+    for r in (auth.router, profile.router, resumes.router, jobs.router, matches.router, applications.router, email_accounts.router, misc.router, files.router, admin.auth_router, admin.router):
         app.include_router(r, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)

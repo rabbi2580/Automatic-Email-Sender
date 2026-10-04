@@ -141,7 +141,8 @@ def ground_extraction(ext: ProfileExtraction, text: str) -> ProfileExtraction:
     return ext
 
 
-def apply_extraction(db: Session, user: User, ext: ProfileExtraction, resume: Resume | None, overwrite_scalars: bool = False) -> Profile:
+def apply_extraction(db: Session, user: User, ext: ProfileExtraction, resume: Resume | None,
+                     overwrite_scalars: bool = False, overwrite_collections: bool = False) -> Profile:
     profile = db.scalar(select(Profile).where(Profile.user_id == user.id))
     if not profile:
         profile = Profile(user_id=user.id)
@@ -160,7 +161,7 @@ def apply_extraction(db: Session, user: User, ext: ProfileExtraction, resume: Re
         ("work_authorization", ext.work_authorization),
         ("other_preferences", ext.other_preferences),
     ):
-        if overwrite_scalars or not getattr(profile, attr):
+        if overwrite_scalars or (not getattr(profile, attr) and value):
             setattr(profile, attr, value)
 
     if overwrite_scalars or not profile.work_preference:
@@ -175,30 +176,36 @@ def apply_extraction(db: Session, user: User, ext: ProfileExtraction, resume: Re
     profile.links = links
     if ext.years_experience is not None and (overwrite_scalars or profile.years_experience is None):
         profile.years_experience = ext.years_experience
-    profile.languages = ext.languages or profile.languages
-    profile.strengths = ext.strengths
-    profile.achievements, profile.publications, profile.extracurriculars = ext.achievements, ext.publications, ext.extracurriculars
-    profile.reference_contacts = ext.references
+    for attr, value in (("languages", ext.languages), ("strengths", ext.strengths),
+                        ("achievements", ext.achievements), ("publications", ext.publications),
+                        ("extracurriculars", ext.extracurriculars), ("reference_contacts", ext.references)):
+        if overwrite_collections or (not getattr(profile, attr) and value):
+            setattr(profile, attr, value)
     if resume:
         profile.source_resume_id = resume.id
 
-    for model in (Skill, Experience, Education, Project, Certification):
-        db.execute(delete(model).where(model.profile_id == profile.id))
-    seen = set()
-    for s in ext.skills:
-        canon = canonicalize(s.name)
-        if canon.lower() in seen:
+    collections = ((Skill, ext.skills), (Experience, ext.experiences), (Education, ext.educations),
+                   (Project, ext.projects), (Certification, ext.certifications))
+    for model, values in collections:
+        existing = db.scalar(select(model.id).where(model.profile_id == profile.id).limit(1))
+        if existing and not overwrite_collections:
             continue
-        seen.add(canon.lower())
-        db.add(Skill(user_id=user.id, profile_id=profile.id, name=canon, canonical=canon, category=s.category if s.category != "technical" else category_of(canon)))
-    for i, e in enumerate(ext.experiences):
-        db.add(Experience(user_id=user.id, profile_id=profile.id, sort_order=i, **e.model_dump()))
-    for i, e in enumerate(ext.educations):
-        db.add(Education(user_id=user.id, profile_id=profile.id, sort_order=i, **e.model_dump()))
-    for i, p in enumerate(ext.projects):
-        db.add(Project(user_id=user.id, profile_id=profile.id, sort_order=i, **p.model_dump()))
-    for c in ext.certifications:
-        db.add(Certification(user_id=user.id, profile_id=profile.id, **c.model_dump()))
+        db.execute(delete(model).where(model.profile_id == profile.id))
+        if model is Skill:
+            seen = set()
+            for s in values:
+                canon = canonicalize(s.name)
+                if canon and canon.lower() not in seen:
+                    seen.add(canon.lower())
+                    db.add(Skill(user_id=user.id, profile_id=profile.id, name=canon, canonical=canon,
+                                 category=s.category if s.category != "technical" else category_of(canon)))
+        else:
+            for i, value in enumerate(values):
+                payload = value.model_dump()
+                if model is Certification:
+                    db.add(model(user_id=user.id, profile_id=profile.id, **payload))
+                else:
+                    db.add(model(user_id=user.id, profile_id=profile.id, sort_order=i, **payload))
     db.flush()
     db.refresh(profile)
     return profile
