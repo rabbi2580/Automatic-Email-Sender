@@ -118,7 +118,11 @@ def ocr_image(data: bytes) -> str:
         img.load()
         if img.width * img.height > 40_000_000:
             raise DocumentError("The image resolution is too large.", "too_large")
-        text = pytesseract.image_to_string(img.convert("L"))
+        try:
+            text = pytesseract.image_to_string(img.convert("L"), lang="eng+ben")
+        except Exception:
+            # Minimal installations may not ship the Bangla language pack.
+            text = pytesseract.image_to_string(img.convert("L"))
     except DocumentError:
         raise
     except pytesseract.TesseractNotFoundError as exc:  # type: ignore[attr-defined]
@@ -164,7 +168,10 @@ def _ocr_pdf(data: bytes) -> str:
         out = []
         for i in range(min(len(pdf), 4)):
             img = pdf[i].render(scale=2).to_pil().convert("L")
-            out.append(pytesseract.image_to_string(img))
+            try:
+                out.append(pytesseract.image_to_string(img, lang="eng+ben"))
+            except Exception:
+                out.append(pytesseract.image_to_string(img))
         return "\n".join(out)
     except Exception:  # noqa: BLE001 - OCR is best-effort
         return ""

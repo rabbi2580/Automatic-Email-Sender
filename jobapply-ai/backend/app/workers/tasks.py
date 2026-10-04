@@ -5,7 +5,9 @@ import logging
 import uuid
 
 from app.core.db import SessionLocal
-from app.models import Application, Job, Resume, User
+from app.models import Application, FollowUpDraft, Job, Notification, Resume, User
+from app.models.base import utcnow
+from sqlalchemy import select
 from app.services import mail_tracking, pipeline
 
 log = logging.getLogger("jobapply.tasks")
@@ -56,4 +58,17 @@ def task_poll_mailboxes() -> None:
         mail_tracking.poll_mailboxes(db)
 
 
-TASKS = {"process_resume": task_process_resume, "process_job": task_process_job, "generate_application": task_generate_application, "poll_mailboxes": task_poll_mailboxes}
+def task_create_reminders() -> None:
+    """Create one notification per due application/follow-up; delivery is left to the UI/email layer."""
+    with SessionLocal() as db:
+        now = utcnow()
+        for a in db.scalars(select(Application).where(Application.reminder_at.is_not(None), Application.reminder_at <= now, Application.deleted_at.is_(None))).all():
+            exists = db.scalar(select(Notification.id).where(Notification.user_id == a.user_id, Notification.kind == "reminder", Notification.entity_id == str(a.id), Notification.dismissed_at.is_(None)))
+            if not exists: db.add(Notification(user_id=a.user_id, kind="reminder", title="Application reminder", body="Review your application follow-up.", entity_type="application", entity_id=str(a.id)))
+        for d in db.scalars(select(FollowUpDraft).where(FollowUpDraft.due_at.is_not(None), FollowUpDraft.due_at <= now, FollowUpDraft.status == "draft")).all():
+            exists = db.scalar(select(Notification.id).where(Notification.user_id == d.user_id, Notification.kind == "follow_up_due", Notification.entity_id == str(d.id), Notification.dismissed_at.is_(None)))
+            if not exists: db.add(Notification(user_id=d.user_id, kind="follow_up_due", title="Follow-up ready", body="Review your follow-up draft before sending.", entity_type="follow_up", entity_id=str(d.id)))
+        db.commit()
+
+
+TASKS = {"process_resume": task_process_resume, "process_job": task_process_job, "generate_application": task_generate_application, "poll_mailboxes": task_poll_mailboxes, "create_reminders": task_create_reminders}

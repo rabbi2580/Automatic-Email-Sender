@@ -37,6 +37,10 @@ def _clean(value: str | None, limit: int = 500) -> str:
     return re.sub(r"\s+", " ", value or "").strip()[:limit]
 
 
+def _subject_key(value: str | None) -> str:
+    return re.sub(r"^(?:re|fwd|fw|following up)\s*:\s*", "", _clean(value, 500), flags=re.I).strip().lower()
+
+
 def _gmail_messages(token: str, addresses: list[str], after: datetime) -> list[dict]:
     if not addresses:
         return []
@@ -110,7 +114,10 @@ def poll_account(db: Session, account: EmailAccount) -> int:
         if not msg.get("external_id") or db.scalar(select(IncomingMessage.id).where(IncomingMessage.user_id == user.id, IncomingMessage.provider == account.provider, IncomingMessage.external_id == msg["external_id"])):
             continue
         classification = classify_message(msg.get("subject", ""), msg.get("snippet", ""))
-        matching = next(((a, e) for a, e in apps if e.to_address.lower() == msg.get("from", "").lower()), None)
+        candidates = [(a, e) for a, e in apps if e.to_address.lower() == msg.get("from", "").lower()]
+        # Recipient matching is mandatory; subject/thread matching disambiguates multiple applications to one recruiter.
+        keyed = [pair for pair in candidates if _subject_key(pair[1].subject) == _subject_key(msg.get("subject"))]
+        matching = keyed[0] if keyed else candidates[0] if len(candidates) == 1 else None
         app = matching[0] if matching else None
         incoming = IncomingMessage(user_id=user.id, email_account_id=account.id, application_id=app.id if app else None,
                                    provider=account.provider, external_id=msg["external_id"], thread_id=msg.get("thread_id", ""),

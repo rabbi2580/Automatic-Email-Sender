@@ -36,6 +36,7 @@ def match_out(m: JobMatch) -> dict:
 
 def resume_out(r: Resume) -> dict:
     return {"id": str(r.id), "filename": r.filename, "label": r.label, "size_bytes": r.size_bytes, "status": r.status, "status_reason": r.status_reason,
+            "parse_quality": r.parse_quality or {},
             "is_master": r.is_master, "created_at": r.created_at.isoformat()}
 
 

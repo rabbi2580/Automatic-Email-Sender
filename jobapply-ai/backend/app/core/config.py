@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     system_smtp_user: str | None = None
     system_smtp_password: str | None = None
     system_email_from: str = "no-reply@jobapply.local"
+    sentry_dsn: str | None = None
 
     # --- abuse prevention / limits (defaults; plan limits override)
     rate_limit_backend: str = "memory"  # memory | redis (use redis when running more than one API process)

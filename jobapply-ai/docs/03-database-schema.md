@@ -2,6 +2,8 @@
 
 Generated from the SQLAlchemy models. Migrations: `backend/alembic/versions`. Tenant-owned tables carry an indexed `user_id` FK with `ON DELETE CASCADE` (log tables use `SET NULL` so aggregate metrics survive account deletion without keeping identity).
 
+Roadmap additions are delivered by migrations `0005`–`0007`: mailbox tracking/follow-ups, parser quality and correction feedback, ATS reports, reminder snooze/dismiss state, interview preparation, and calendar events.
+
 
 ## `ai_cache`
 

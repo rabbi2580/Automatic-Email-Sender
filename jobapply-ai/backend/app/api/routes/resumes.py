@@ -18,6 +18,7 @@ from app.services import usage
 from app.services.audit import audit
 from app.services.parsing.documents import DocumentError, check_size, sniff_kind
 from app.services.storage import get_storage, new_key, signed_download_token
+from app.schemas.api import CorrectionFeedbackIn
 from app.workers.dispatch import enqueue
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
@@ -83,6 +84,16 @@ def reparse(resume_id: uuid.UUID, user: User = Depends(get_current_user), db: Se
     enqueue("process_resume", str(r.id))
     db.expire_all()
     return resume_out(db.get(Resume, r.id))
+
+
+@router.post("/{resume_id}/feedback")
+def correction_feedback(resume_id: uuid.UUID, body: CorrectionFeedbackIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    r = get_owned(db, Resume, resume_id, user)
+    feedback = list(r.correction_feedback or [])
+    feedback.append({**body.model_dump(), "at": utcnow().isoformat()})
+    r.correction_feedback = feedback[-100:]
+    db.commit()
+    return {"ok": True, "feedback_count": len(r.correction_feedback)}
 
 
 @router.get("/{resume_id}/download")

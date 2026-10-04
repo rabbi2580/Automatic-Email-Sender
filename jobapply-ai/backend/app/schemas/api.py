@@ -250,6 +250,25 @@ class FollowUpPatch(BaseModel):
     body: str | None = Field(default=None, min_length=20, max_length=8000)
 
 
+class NotificationAction(BaseModel):
+    action: Literal["read", "dismiss", "snooze"]
+    until: datetime | None = None
+
+
+class CorrectionFeedbackIn(BaseModel):
+    field: str = Field(min_length=1, max_length=80)
+    corrected_value: str = Field(max_length=2000)
+    accepted: bool = True
+
+
+class CalendarEventIn(BaseModel):
+    application_id: uuid.UUID | None = None
+    title: str = Field(min_length=1, max_length=300)
+    starts_at: datetime
+    ends_at: datetime | None = None
+    location: str = Field(default="", max_length=500)
+
+
 class DeleteAccountIn(BaseModel):
     password: str | None = None
     confirm: Literal["DELETE MY ACCOUNT"]

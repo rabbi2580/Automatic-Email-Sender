@@ -76,3 +76,6 @@ frontend/  Next.js app (dashboard, profile, CVs, jobs wizard, matches, review/ap
 docs/      design + operations docs
 docker-compose.yml, .env.example
 ```
+### Operational workers
+
+Production deployments should run both the Celery worker and beat scheduler after `alembic upgrade head`. Beat polls opted-in mailboxes and creates due reminder notifications; neither task sends user email automatically.

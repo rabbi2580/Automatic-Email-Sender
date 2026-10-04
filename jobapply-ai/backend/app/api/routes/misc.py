@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -12,10 +13,10 @@ from app.core.db import get_db
 from app.core.deps import get_current_user
 from app.core.security import verify_password
 from app.models import (
-    Application, ApplicationEmail, ApplicationEvent, AuditLog, CoverLetter, EmailAccount, FollowUpDraft, FollowUpRule, IncomingMessage, Job, JobMatch, Notification, Profile, Resume, ResumeVersion, SendLog, User,
+    Application, ApplicationEmail, ApplicationEvent, AuditLog, CalendarEvent, CoverLetter, EmailAccount, FollowUpDraft, FollowUpRule, IncomingMessage, InterviewPrep, Job, JobMatch, Notification, Profile, Resume, ResumeVersion, SendLog, User,
 )
 from app.models.base import utcnow
-from app.schemas.api import DeleteAccountIn, SettingsIn, TrainingOptIn
+from app.schemas.api import DeleteAccountIn, NotificationAction, SettingsIn, TrainingOptIn
 from app.services import usage
 from app.services.audit import audit
 from app.services.matching.engine import normalise_thresholds, normalise_weights
@@ -85,9 +86,23 @@ def put_settings(body: SettingsIn, user: User = Depends(get_current_user), db: S
 @router.get("/notifications")
 def notifications(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
-    rows = db.scalars(select(Notification).where(Notification.user_id == user.id, (Notification.due_at.is_(None)) | (Notification.due_at <= now)).order_by(Notification.created_at.desc()).limit(50)).all()
+    rows = db.scalars(select(Notification).where(Notification.user_id == user.id, Notification.dismissed_at.is_(None), Notification.snoozed_until.is_(None) | (Notification.snoozed_until <= now),
+                                                    (Notification.due_at.is_(None)) | (Notification.due_at <= now)).order_by(Notification.created_at.desc()).limit(50)).all()
     return [{"id": str(n.id), "kind": n.kind, "title": n.title, "body": n.body, "entity_type": n.entity_type, "entity_id": n.entity_id, "read": n.read_at is not None,
              "created_at": n.created_at.isoformat()} for n in rows]
+
+
+@router.patch("/notifications/{notification_id}")
+def notification_action(notification_id: uuid.UUID, body: NotificationAction, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    n = db.scalar(select(Notification).where(Notification.id == notification_id, Notification.user_id == user.id))
+    if not n: raise HTTPException(404, "Notification not found")
+    if body.action == "read": n.read_at = utcnow()
+    elif body.action == "dismiss": n.dismissed_at = utcnow()
+    else:
+        if not body.until: raise HTTPException(422, "until is required when snoozing")
+        if body.until <= utcnow(): raise HTTPException(422, "snooze time must be in the future")
+        n.snoozed_until = body.until
+    db.commit(); return {"ok": True}
 
 
 # ------------------------------------------------------------------ privacy -------------------------------------------------------
@@ -121,6 +136,10 @@ def export_data(request: Request, user: User = Depends(get_current_user), db: Se
         "follow_up_drafts": [{"id": str(d.id), "application_id": str(d.application_id), "sequence": d.sequence, "status": d.status, "to": d.to_address,
                               "subject": d.subject, "body": d.body, "due_at": d.due_at.isoformat() if d.due_at else None}
                              for d in db.scalars(select(FollowUpDraft).where(FollowUpDraft.user_id == user.id))],
+        "interview_prep": [{"application_id": str(p.application_id), "questions": p.questions, "notes": p.notes, "completed_at": p.completed_at.isoformat() if p.completed_at else None}
+                            for p in db.scalars(select(InterviewPrep).where(InterviewPrep.user_id == user.id))],
+        "calendar_events": [{"id": str(e.id), "application_id": str(e.application_id) if e.application_id else None, "title": e.title, "starts_at": e.starts_at.isoformat(), "ends_at": e.ends_at.isoformat() if e.ends_at else None, "location": e.location}
+                             for e in db.scalars(select(CalendarEvent).where(CalendarEvent.user_id == user.id))],
         "send_log": [{"recipient": s.recipient, "success": s.success, "at": s.created_at.isoformat()} for s in db.scalars(select(SendLog).where(SendLog.user_id == user.id))],
         "audit_log": [{"action": a.action, "at": a.created_at.isoformat()} for a in db.scalars(select(AuditLog).where(AuditLog.user_id == user.id).order_by(AuditLog.created_at))],
     }
@@ -161,6 +180,10 @@ def delete_history(request: Request, user: User = Depends(get_current_user), db:
         db.delete(d)
     for r in db.scalars(select(FollowUpRule).where(FollowUpRule.user_id == user.id)):
         db.delete(r)
+    for p in db.scalars(select(InterviewPrep).where(InterviewPrep.user_id == user.id)):
+        db.delete(p)
+    for e in db.scalars(select(CalendarEvent).where(CalendarEvent.user_id == user.id)):
+        db.delete(e)
     audit(db, user.id, "privacy.delete_history", request=request)
     db.commit()
 

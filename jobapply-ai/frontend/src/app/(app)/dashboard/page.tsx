@@ -14,6 +14,7 @@ const LABELS: [string, string][] = [["jobs_added", "Jobs added"], ["strong_match
 export default function Dashboard() {
   const { data, error, loading, reload } = useLoad(() => api<Analytics>("/analytics"));
   const usage = useLoad(() => api<{ plan: string; limits: Record<string, { used: number; limit: number; period: string }> }>("/usage"));
+  const notices = useLoad(() => api<any[]>("/notifications"));
   if (loading) return <Spinner />;
   if (error || !data) return <ErrorBox error={error} onRetry={reload} />;
   const empty = !data.cards.jobs_added;
@@ -41,6 +42,9 @@ export default function Dashboard() {
         </Card>
         <Card title="Plan usage">
           {usage.data ? <ul className="space-y-1 text-sm"><li className="mb-1"><Badge tone="purple">{usage.data.plan}</Badge></li>{Object.entries(usage.data.limits).map(([k, v]) => <li key={k} className="flex justify-between"><span>{pretty(k)}</span><span className="text-slate-600">{v.used} / {v.limit} <span className="text-xs text-slate-400">{v.period}</span></span></li>)}</ul> : <Spinner />}
+        </Card>
+        <Card title="Action center">
+          {!notices.data?.length ? <p className="text-sm text-slate-500">Nothing needs your attention.</p> : <ul className="space-y-2 text-sm">{notices.data.slice(0, 8).map((n: any) => <li key={n.id} className="rounded border p-2"><b>{n.title}</b><p className="text-slate-600">{n.body}</p><div className="mt-1 flex gap-2"><button className="text-xs font-semibold text-brand-700" onClick={async () => { await api(`/notifications/${n.id}`, { method: "PATCH", body: { action: "read" } }); notices.reload(); }}>Mark read</button><button className="text-xs text-slate-600" onClick={async () => { await api(`/notifications/${n.id}`, { method: "PATCH", body: { action: "dismiss" } }); notices.reload(); }}>Dismiss</button></div></li>)}</ul>}
         </Card>
       </div>
       <p className="text-xs text-slate-500">{data.disclaimer}</p>

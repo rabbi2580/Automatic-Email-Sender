@@ -19,6 +19,8 @@ from app.services import pipeline, usage
 from app.services.audit import audit
 from app.services.parsing.documents import DocumentError, extract_text, sniff_kind
 from app.services.parsing.job_parser import parse_job_text, split_multiple_jobs
+from app.services.cv_quality import ats_score
+from app.models import Profile
 from app.services.parsing.skills import canonicalize
 from app.services.parsing.url_fetch import FetchError, fetch_job_page
 from app.services.storage import get_storage, new_key
@@ -251,6 +253,17 @@ def patch_job(job_id: uuid.UUID, body: JobPatch, user: User = Depends(get_curren
     m = pipeline.match_job(db, user, j)
     db.commit()
     return job_out(j, m)
+
+
+@router.post("/{job_id}/ats-score")
+def score_job(job_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    job = get_owned(db, Job, job_id, user)
+    profile = db.scalar(select(Profile).where(Profile.user_id == user.id))
+    if not profile: raise HTTPException(422, "Complete your profile before scoring a CV against this job.")
+    score, report = ats_score(profile, job)
+    job.ats_score, job.ats_report = score, report
+    db.commit()
+    return {"score": score, **report}
 
 
 @router.delete("/{job_id}", status_code=204)

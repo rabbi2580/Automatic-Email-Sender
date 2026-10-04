@@ -73,6 +73,8 @@ class Job(Base, UUIDPk, Timestamps, SoftDelete):
     status_reason: Mapped[str | None] = mapped_column(String(500))
     duplicate_of_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     duplicate_score: Mapped[float | None] = mapped_column(Float)
+    ats_score: Mapped[float | None] = mapped_column(Float)
+    ats_report: Mapped[dict] = mapped_column(JSONType, default=dict)
     __table_args__ = (Index("ix_jobs_user_deadline", "user_id", "deadline"), Index("ix_jobs_user_created", "user_id", "created_at"))
 
 

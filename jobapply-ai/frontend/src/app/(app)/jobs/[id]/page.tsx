@@ -17,6 +17,7 @@ export default function JobDetail() {
   const { data, error, loading, reload } = useLoad(() => api<any>(`/jobs/${id}`), [id]);
   const [f, setF] = useState<any>(null);
   const [gen, setGen] = useState(false);
+  const [ats, setAts] = useState<any>(null);
   useEffect(() => { if (data) setF({ company_name: data.company, job_title: data.title, location: data.location, application_email: data.application_email || "", application_url: data.application_url || "", deadline: data.deadline || "", salary: data.salary || "", required_skills: data.required_skills, preferred_skills: data.preferred_skills, tech_stack: data.tech_stack }); }, [data]);
   if (loading || !f) return error ? <ErrorBox error={error} onRetry={reload} /> : <Spinner />;
   async function save() {
@@ -26,6 +27,7 @@ export default function JobDetail() {
     } catch (e) { toast((e as Error).message, "err"); }
   }
   async function retry() { try { await api(`/jobs/${id}/retry`, { method: "POST" }); reload(); } catch (e) { toast((e as Error).message, "err"); } }
+  async function score() { try { setAts(await api(`/jobs/${id}/ats-score`, { method: "POST" })); toast("ATS score updated."); } catch (e) { toast((e as Error).message, "err"); } }
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -36,6 +38,7 @@ export default function JobDetail() {
       {data.status_reason && <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">{data.status_reason} <button className="underline" onClick={retry}>Retry</button></div>}
       {data.duplicate_of && <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">{data.duplicate_message}</div>}
       <Card title="Match analysis"><MatchPanel match={data.match} /></Card>
+      <Card title="ATS readiness" actions={<Button variant="secondary" onClick={score}>Score my CV</Button>}>{ats ? <div className="space-y-2 text-sm"><div className="text-2xl font-bold text-brand-700">{ats.score}%</div><p>Matched keywords: {ats.matched_keywords?.join(", ") || "none"}</p><p className="text-amber-700">Suggestions: {ats.tips?.join(" ") || "No obvious gaps."}</p></div> : <p className="text-sm text-slate-500">Compare your profile against this job’s keywords and section completeness.</p>}</Card>
       <Card title="Details (editable — corrections re-run the match)" actions={<Button onClick={save}>Save</Button>}>
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Company"><input className="input" value={f.company_name || ""} onChange={(e) => setF({ ...f, company_name: e.target.value })} /></Field>

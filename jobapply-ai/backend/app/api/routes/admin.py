@@ -124,6 +124,7 @@ def analytics(db: Session = Depends(get_db)):
     return {"users": {"total": users(), "last_24h": users(day_ago), "last_7d": users(week_ago)},
             "cvs": {"total": resumes(), "completed": resumes("completed"), "needs_review": resumes("requires_review"), "failed": resumes("failed"), "queued": resumes("queued"), "processing": resumes("processing")},
             "parse_success_rate": round((resumes("completed") + resumes("requires_review")) / resumes() * 100, 1) if resumes() else 0.0,
+            "parse_errors_7d": db.scalar(select(func.count()).select_from(Resume).where(Resume.status == "failed", Resume.updated_at >= week_ago)) or 0,
             "generated_at": now.isoformat()}
 
 

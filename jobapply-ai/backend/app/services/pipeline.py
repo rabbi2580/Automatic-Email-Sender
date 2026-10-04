@@ -231,6 +231,11 @@ def process_resume(db: Session, resume_id: uuid.UUID) -> Resume:
         db.commit()
         return resume
     resume.extracted_text = doc.text
+    # Transparent extraction quality signal; it is a review aid, never a claim of truth.
+    resume.parse_quality = {"text_chars": len(doc.text), "used_ocr": doc.used_ocr, "pages": doc.pages,
+                            "signals": {"email": bool(re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", doc.text)),
+                                        "dates": bool(re.search(r"\b(?:19|20)\d{2}\b", doc.text)),
+                                        "sections": len(split_sections(doc.text)[1])}}
     ai = AIService(db, user.id)
     ext, source = ai.structured(
         task="cv_extract", schema=ProfileExtraction, tier="cheap",

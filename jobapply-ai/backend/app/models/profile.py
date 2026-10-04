@@ -125,6 +125,8 @@ class Resume(Base, UUIDPk, Timestamps, SoftDelete):
     status_reason: Mapped[str | None] = mapped_column(String(500))
     is_master: Mapped[bool] = mapped_column(Boolean, default=True)
     label: Mapped[str] = mapped_column(String(100), default="Master CV")
+    parse_quality: Mapped[dict] = mapped_column(JSONType, default=dict)
+    correction_feedback: Mapped[list] = mapped_column(JSONType, default=list)
 
 
 class ResumeVersion(Base, UUIDPk, Timestamps):

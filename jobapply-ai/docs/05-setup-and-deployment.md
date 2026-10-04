@@ -14,6 +14,7 @@ All settings are read by `backend/app/core/config.py`. `.env.example` lists ever
 | `RATE_LIMIT_BACKEND` | `redis` whenever more than one API process/replica runs |
 | `TRUSTED_PROXY_HOPS` | number of reverse proxies you control in front of the API (client IP for rate limits/audit comes from `X-Forwarded-For` only when > 0) |
 | `AI_PROVIDER` | `heuristic` \| `openai` \| `openai_compatible` \| `anthropic` \| `gemini`; plus `AI_CHEAP_MODEL`, `AI_STRONG_MODEL` |
+| `SENTRY_DSN` | Optional error tracking; request bodies and personal data are not sent by the application integration |
 
 ## 2. OAuth setup
 * **Google** (sign-in and Gmail send): create an OAuth client; authorised redirect URIs: `{API_BASE_URL}/api/v1/auth/google/callback` and `{API_BASE_URL}/api/v1/integrations/email/callback/gmail`. Sending requests `gmail.send`; users who opt into tracking additionally request `gmail.readonly`. These are sensitive scopes and require Google verification before public launch.
@@ -42,3 +43,5 @@ celery -A app.workers.celery_app.celery_app beat -l info
 ```
 
 Reply tracking is opt-in per connected Gmail/Outlook account. Enabling it requests a separate read-only mailbox scope. The worker polls every five minutes, reads only metadata for messages from application recipients, stores a short snippet/classification, and never stores message bodies. SMTP accounts do not support tracking.
+
+Backups should be scheduled at the database and object-storage layer (daily encrypted database snapshots plus versioned storage with lifecycle retention). Test restoration monthly; never include encryption keys in the same backup location.

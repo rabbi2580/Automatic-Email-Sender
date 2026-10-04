@@ -34,6 +34,12 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     s = get_settings()
+    if s.sentry_dsn:
+        try:
+            import sentry_sdk
+            sentry_sdk.init(dsn=s.sentry_dsn, environment=s.environment, traces_sample_rate=0.1, send_default_pii=False)
+        except ImportError:
+            log.warning("SENTRY_DSN is configured but sentry-sdk is not installed")
     app = FastAPI(title=s.app_name, version=__version__, lifespan=lifespan, docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json",
                   description="AI job-application assistant. All endpoints (except auth and signed file downloads) require a Bearer token and are tenant-isolated.")
     app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in s.cors_origins.split(",") if o.strip()], allow_credentials=False,
@@ -63,9 +69,9 @@ def create_app() -> FastAPI:
                                    "duration_ms": int((time.monotonic() - t0) * 1000), "user_id": getattr(request.state, "user_id", None)})
         return resp
 
-    from app.api.routes import admin, applications, auth, email_accounts, files, followups, jobs, matches, misc, profile, resumes
+    from app.api.routes import admin, applications, auth, email_accounts, files, followups, jobs, matches, misc, planning, profile, resumes
 
-    for r in (auth.router, profile.router, resumes.router, jobs.router, matches.router, applications.router, followups.router, email_accounts.router, misc.router, files.router, admin.auth_router, admin.router):
+    for r in (auth.router, profile.router, resumes.router, jobs.router, matches.router, applications.router, followups.router, planning.router, email_accounts.router, misc.router, files.router, admin.auth_router, admin.router):
         app.include_router(r, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)

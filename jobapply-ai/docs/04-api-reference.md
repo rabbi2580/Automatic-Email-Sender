@@ -162,3 +162,11 @@ Key flows: `POST /auth/register` → `POST /auth/login` → `POST /resumes/uploa
 - `POST /applications/{id}/undo-auto-update` reverses the latest automatic status change when it is still current.
 - `GET|PUT /follow-ups/settings` manages wait days, maximum follow-ups, and stop-on-reply behavior.
 - `POST /follow-ups/from-application/{id}` creates a grounded draft; `PATCH /follow-ups/{id}` edits it; `POST /follow-ups/{id}/approve` approves it; `POST /follow-ups/{id}/send/preview` and `/send` provide the final review/send gate.
+
+### Roadmap features now available
+
+- `GET /notifications` and `PATCH /notifications/{id}` support read, dismiss, and future snooze actions.
+- `POST /resumes/{id}/feedback` records correction feedback; resume responses expose parse-quality signals.
+- `POST /jobs/{id}/ats-score` returns score, matched/missing keywords, and section suggestions.
+- `GET|PUT /applications/{id}/interview-prep` manages interview questions and notes.
+- `GET|POST /calendar/events` and `DELETE /calendar/events/{id}` provide tenant-owned calendar events.
