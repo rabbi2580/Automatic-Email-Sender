@@ -13,7 +13,7 @@ from app.core.db import get_db
 from app.core.deps import get_current_user, get_owned
 from app.core.ratelimit import rate_limit
 from app.models import (
-    Application, ApplicationDocument, ApplicationEmail, ApplicationEvent, CoverLetter, EmailAccount, Job, JobMatch, ResumeVersion, User,
+    Application, ApplicationDocument, ApplicationEmail, ApplicationEvent, CoverLetter, EmailAccount, IncomingMessage, Job, JobMatch, ResumeVersion, User,
 )
 from app.schemas.api import ApplicationPatch, BulkApproveIn, CoverLetterPatch, EmailPatch, GenerateIn, RegenerateIn, SendIn, SendPreviewIn
 from app.services import exporters_facade as fx
@@ -133,6 +133,29 @@ def send(body: SendIn, request: Request, user: User = Depends(get_current_user),
 @router.get("/{app_id}")
 def get_application(app_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return _detail(db, _app(db, user, app_id))
+
+
+@router.get("/{app_id}/incoming")
+def incoming(app_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    a = _app(db, user, app_id)
+    rows = db.scalars(select(IncomingMessage).where(IncomingMessage.user_id == user.id, IncomingMessage.application_id == a.id).order_by(IncomingMessage.received_at.desc())).all()
+    return [{"id": str(x.id), "classification": x.classification, "from": x.from_address, "subject": x.subject, "snippet": x.snippet,
+             "received_at": x.received_at.isoformat() if x.received_at else None, "auto_updated": x.auto_updated} for x in rows]
+
+
+@router.post("/{app_id}/undo-auto-update")
+def undo_auto_update(app_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    a = _app(db, user, app_id)
+    event = db.scalar(select(ApplicationEvent).where(ApplicationEvent.application_id == a.id, ApplicationEvent.detail["auto_updated"].as_boolean().is_(True)).order_by(ApplicationEvent.created_at.desc()))
+    if not event or not event.from_status or a.status != event.to_status:
+        raise HTTPException(409, "There is no reversible automatic update.")
+    transition(db, a, event.from_status, actor="user", force=True, detail={"undo_auto_update": True, "source_event": str(event.id)})
+    incoming_id = (event.detail or {}).get("incoming_message_id")
+    if incoming_id:
+        msg = db.get(IncomingMessage, uuid.UUID(incoming_id))
+        if msg and msg.user_id == user.id: msg.auto_updated = False
+    db.commit()
+    return _detail(db, a)
 
 
 @router.patch("/{app_id}")

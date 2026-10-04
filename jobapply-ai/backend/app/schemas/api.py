@@ -167,11 +167,13 @@ class BulkApproveIn(BaseModel):
 
 
 class SendPreviewIn(BaseModel):
-    application_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+    application_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+    follow_up_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
 
 
 class SendIn(BaseModel):
-    application_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+    application_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+    follow_up_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
     confirmation_token: str
     confirm: bool
 
@@ -180,6 +182,7 @@ class SendIn(BaseModel):
 class EmailConnectIn(BaseModel):
     provider: Literal["gmail", "outlook"]
     consent: bool
+    tracking: bool = False
 
 
 class SmtpConnectIn(BaseModel):
@@ -204,6 +207,8 @@ class SettingsIn(BaseModel):
     cv_style: Literal["conservative", "modern"] | None = None
     include_cover_letter: bool | None = None
     reminder_days_before_deadline: int | None = Field(default=None, ge=0, le=30)
+    mailbox_tracking: bool | None = None
+
 
     @field_validator("weights")
     @classmethod
@@ -231,6 +236,18 @@ class SettingsIn(BaseModel):
         if None not in (s_, p_, w_) and not (s_ >= p_ >= w_):
             raise ValueError("Thresholds must satisfy strong >= potential >= weak")
         return v
+
+
+class FollowUpRuleIn(BaseModel):
+    default_wait_days: int = Field(default=7, ge=1, le=90)
+    max_followups: int = Field(default=2, ge=0, le=5)
+    stop_on_reply: bool = True
+    enabled: bool = True
+
+
+class FollowUpPatch(BaseModel):
+    subject: str | None = Field(default=None, max_length=500)
+    body: str | None = Field(default=None, min_length=20, max_length=8000)
 
 
 class DeleteAccountIn(BaseModel):

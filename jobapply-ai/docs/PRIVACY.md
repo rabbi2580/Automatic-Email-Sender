@@ -23,3 +23,4 @@ AI provider (OpenAI/Anthropic/Google/self-hosted), cloud host + managed Postgres
 
 ## Compliance notes (not legal advice)
 GDPR/UK-GDPR and similar laws will apply to EU/UK users: you need a lawful basis (contract + consent), a DPA with each sub-processor, a records-of-processing entry, breach procedures, a DPO/contact, and a cross-border transfer mechanism. CV data may include special-category information (e.g. photo, nationality); the app does not require or infer it. Automated decision-making: the app makes **no** decisions about the user; it ranks and drafts, and a human approves every send. The templates in `docs/legal/` must be reviewed by counsel.
+Mailbox tracking is strictly opt-in. Only recipient-matched message metadata and a short classified snippet are retained. Incoming messages and follow-up drafts are included in the account export and removed by application-history/account deletion. OAuth credentials and message bodies are never included in exports.

@@ -23,6 +23,7 @@ export default function ApplicationDetail() {
   const [ro, setRo] = useState<any>({ tone: "professional", language: "en", template: "classic", pages: 1 });
   const accounts = useLoad(() => api<any[]>("/integrations/email"));
   const [busy, setBusy] = useState(false);
+  const [followup, setFollowup] = useState<any>(null);
 
   // Poll while the draft is still being generated (celery mode).
   useEffect(() => {
@@ -48,6 +49,10 @@ export default function ApplicationDetail() {
   const setStatus = (s: string) => wrap(() => api(`/applications/${id}`, { method: "PATCH", body: { status: s } }), `Moved to ${pretty(s)}.`);
   const manual = () => wrap(() => api(`/applications/${id}/mark-applied`, { method: "POST" }), "Marked as applied.");
   const regenerate = async () => { setRegen(false); await wrap(() => api(`/applications/${id}/regenerate`, { body: ro }), "Regenerated."); };
+  const makeFollowup = async () => { try { setFollowup(await api(`/follow-ups/from-application/${id}`, { method: "POST" })); toast("Follow-up draft created for review."); } catch (e) { toast((e as Error).message, "err"); } };
+  const approveFollowup = async () => { if (!followup) return; try { setFollowup(await api(`/follow-ups/${followup.id}/approve`, { method: "POST" })); toast("Follow-up approved. It is still not sent."); } catch (e) { toast((e as Error).message, "err"); } };
+  const sendFollowup = async () => { if (!followup) return; try { setFollowup(await api(`/follow-ups/${followup.id}/send`, { method: "POST" })); toast("Follow-up sent."); } catch (e) { toast((e as Error).message, "err"); } };
+  const undoAuto = () => wrap(() => api(`/applications/${id}/undo-auto-update`, { method: "POST" }), "Automatic status update undone.");
 
   const qcr = a.qc;
   const canApprove = a.status === "awaiting_review";
@@ -120,6 +125,8 @@ export default function ApplicationDetail() {
           <div className="mt-3 max-w-xs"><Field label="Follow-up reminder"><input className="input" type="date" value={remind} onChange={(e) => setRemind(e.target.value)} /></Field></div>
         </Card>
         <Card title="Timeline"><ul className="space-y-1 text-sm">{a.events.map((e: any, i: number) => <li key={i}><span className="text-xs text-slate-400">{new Date(e.at).toLocaleString()}</span> · {e.type === "status_change" ? `${pretty(e.from)} → ${pretty(e.to)}` : pretty(e.type)}</li>)}</ul></Card>
+        {a.status !== "rejected" && a.status !== "offer" && <Card title="Follow-up"><p className="text-sm text-slate-600">Create a grounded draft after waiting, review it, then explicitly approve and send.</p><div className="mt-2 flex gap-2"><Button variant="secondary" onClick={makeFollowup}>Create draft</Button>{followup?.status === "draft" && <Button onClick={approveFollowup}>Approve draft</Button>}{followup?.status === "approved" && <Button onClick={sendFollowup}>Send approved follow-up</Button>}</div>{followup && <div className="mt-3 rounded border p-3 text-sm"><b>{followup.subject}</b><p className="whitespace-pre-wrap mt-2">{followup.body}</p><span className="text-xs text-slate-500">{pretty(followup.status)} · due {followup.due_at ? new Date(followup.due_at).toLocaleDateString() : "—"}</span></div>}</Card>}
+        {a.events.some((e: any) => e.detail?.auto_updated) && <Button variant="ghost" onClick={undoAuto}>Undo latest automatic update</Button>}
       </>}
 
       <Modal open={regen} onClose={() => setRegen(false)} title="Regenerate">

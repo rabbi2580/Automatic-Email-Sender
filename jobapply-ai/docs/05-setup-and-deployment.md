@@ -16,8 +16,8 @@ All settings are read by `backend/app/core/config.py`. `.env.example` lists ever
 | `AI_PROVIDER` | `heuristic` \| `openai` \| `openai_compatible` \| `anthropic` \| `gemini`; plus `AI_CHEAP_MODEL`, `AI_STRONG_MODEL` |
 
 ## 2. OAuth setup
-* **Google** (sign-in and Gmail send): create an OAuth client; authorised redirect URIs: `{API_BASE_URL}/api/v1/auth/google/callback` and `{API_BASE_URL}/api/v1/integrations/email/callback/gmail`. The Gmail scope requested is `gmail.send` only. This is a *sensitive* scope: Google requires app verification before public launch.
-* **Microsoft** (Outlook send): register an app; redirect URI `{API_BASE_URL}/api/v1/integrations/email/callback/outlook`; delegated permission `Mail.Send` + `offline_access`.
+* **Google** (sign-in and Gmail send): create an OAuth client; authorised redirect URIs: `{API_BASE_URL}/api/v1/auth/google/callback` and `{API_BASE_URL}/api/v1/integrations/email/callback/gmail`. Sending requests `gmail.send`; users who opt into tracking additionally request `gmail.readonly`. These are sensitive scopes and require Google verification before public launch.
+* **Microsoft** (Outlook send): register an app; redirect URI `{API_BASE_URL}/api/v1/integrations/email/callback/outlook`; delegated permission `Mail.Send` + `offline_access`. Tracking additionally requests `Mail.ReadBasic`.
 * **SMTP**: users enter their own host/credentials; passwords are encrypted and never returned by the API.
 
 ## 3. Docker Compose
@@ -31,3 +31,14 @@ All settings are read by `backend/app/core/config.py`. `.env.example` lists ever
 * Ship JSON logs (they scrub secrets and contain no CV/job content) to your log platform; alert on `/api/v1/admin/health` fields (`stuck_jobs`, `ai_failure_rate_24h`, failed sends).
 * Create the first admin: `UPDATE users SET role='admin' WHERE email='you@example.com';`
 * Migrations: `cd backend && alembic upgrade head`. Create new ones with `alembic revision --autogenerate -m "…"`, review them, and run `alembic check` in CI.
+## Reply tracking and follow-ups
+
+Run the new migrations before deploying the mailbox worker:
+
+```bash
+alembic upgrade head
+celery -A app.workers.celery_app.celery_app worker -l info
+celery -A app.workers.celery_app.celery_app beat -l info
+```
+
+Reply tracking is opt-in per connected Gmail/Outlook account. Enabling it requests a separate read-only mailbox scope. The worker polls every five minutes, reads only metadata for messages from application recipients, stores a short snippet/classification, and never stores message bodies. SMTP accounts do not support tracking.

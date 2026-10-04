@@ -51,9 +51,10 @@ def list_accounts(user: User = Depends(get_current_user), db: Session = Depends(
 def connect(body: EmailConnectIn, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not body.consent:
         raise HTTPException(422, "Please confirm that you allow JobApply AI to send emails from your account on your behalf, only after you approve each application.")
-    state = sign_payload({"u": str(user.id), "p": body.provider}, 600, "email_oauth")
+    tracking = bool(body.tracking or (user.settings or {}).get("mailbox_tracking"))
+    state = sign_payload({"u": str(user.id), "p": body.provider, "tracking": tracking}, 600, "email_oauth")
     try:
-        url = oauth.authorization_url(body.provider, state)
+        url = oauth.authorization_url(body.provider, state, tracking=tracking)
     except DeliveryError as e:
         raise HTTPException(501, e.reason)
     audit(db, user.id, "email.connect_start", request=request, provider=body.provider)
@@ -71,23 +72,25 @@ def callback(provider: str, code: str, state: str, request: Request, db: Session
     if not user:
         raise HTTPException(400, "Invalid connection request.")
     try:
-        tok = oauth.exchange_code(provider, code)
+        tracking = bool(st.get("tracking"))
+        tok = oauth.exchange_code(provider, code, tracking=tracking)
         if not tok.get("refresh_token"):
             raise DeliveryError("The provider did not grant offline access. Remove the app from your account permissions and connect again.")
         if provider == "gmail":
             r = httpx.get("https://openidconnect.googleapis.com/v1/userinfo", headers={"Authorization": f"Bearer {tok['access_token']}"}, timeout=20)
             r.raise_for_status()
             address, display = r.json()["email"], r.json().get("name", "")
-            scopes = oauth.GMAIL_SCOPES
+            scopes = oauth.scopes_for("gmail", tracking)
         else:
             r = httpx.get("https://graph.microsoft.com/v1.0/me", headers={"Authorization": f"Bearer {tok['access_token']}"}, timeout=20)
             r.raise_for_status()
             j = r.json()
             address, display = j.get("mail") or j["userPrincipalName"], j.get("displayName", "")
-            scopes = oauth.MS_SCOPES
+            scopes = oauth.scopes_for("outlook", tracking)
     except (DeliveryError, httpx.HTTPError, KeyError) as e:
         return RedirectResponse(f"{s.public_base_url}/email?error=connect_failed")
-    _save_account(db, user, provider, address.lower(), display, {"refresh_token": tok["refresh_token"]}, scopes)
+    acct = _save_account(db, user, provider, address.lower(), display, {"refresh_token": tok["refresh_token"]}, scopes)
+    acct.tracking_enabled = tracking
     audit(db, user.id, "email.connected", request=request, provider=provider)
     db.commit()
     return RedirectResponse(f"{s.public_base_url}/email?connected={provider}")

@@ -53,7 +53,9 @@ def email_out(e: ApplicationEmail | None) -> dict | None:
 
 def account_out(a: EmailAccount) -> dict:
     return {"id": str(a.id), "provider": a.provider, "address": a.address, "display_name": a.display_name, "status": a.status, "is_default": a.is_default,
-            "scopes": a.scopes, "last_used_at": a.last_used_at.isoformat() if a.last_used_at else None, "connected_at": a.created_at.isoformat()}
+            "scopes": a.scopes, "tracking_enabled": a.tracking_enabled, "tracking_error": a.tracking_error,
+            "last_tracking_at": a.last_tracking_at.isoformat() if a.last_tracking_at else None,
+            "last_used_at": a.last_used_at.isoformat() if a.last_used_at else None, "connected_at": a.created_at.isoformat()}
 
 
 def application_summary(a: Application, j: Job, m: JobMatch | None) -> dict:

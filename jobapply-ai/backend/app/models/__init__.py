@@ -1,5 +1,5 @@
 from app.models.applications import (  # noqa: F401
-    APPLICATION_STATUSES, Application, ApplicationDocument, ApplicationEmail, ApplicationEvent,
+    APPLICATION_STATUSES, Application, ApplicationDocument, ApplicationEmail, ApplicationEvent, FollowUpDraft, FollowUpRule, IncomingMessage,
     CoverLetter, EmailAccount, Integration, SendLog,
 )
 from app.models.base import Base  # noqa: F401

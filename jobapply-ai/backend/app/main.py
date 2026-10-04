@@ -63,9 +63,9 @@ def create_app() -> FastAPI:
                                    "duration_ms": int((time.monotonic() - t0) * 1000), "user_id": getattr(request.state, "user_id", None)})
         return resp
 
-    from app.api.routes import admin, applications, auth, email_accounts, files, jobs, matches, misc, profile, resumes
+    from app.api.routes import admin, applications, auth, email_accounts, files, followups, jobs, matches, misc, profile, resumes
 
-    for r in (auth.router, profile.router, resumes.router, jobs.router, matches.router, applications.router, email_accounts.router, misc.router, files.router, admin.auth_router, admin.router):
+    for r in (auth.router, profile.router, resumes.router, jobs.router, matches.router, applications.router, followups.router, email_accounts.router, misc.router, files.router, admin.auth_router, admin.router):
         app.include_router(r, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)

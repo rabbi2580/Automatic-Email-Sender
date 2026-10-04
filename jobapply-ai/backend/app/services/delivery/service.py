@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.crypto import decrypt_str, sign_payload, verify_payload
-from app.models import Application, ApplicationDocument, ApplicationEmail, EmailAccount, Job, SendLog, User
+from app.models import Application, ApplicationDocument, ApplicationEmail, EmailAccount, FollowUpDraft, Job, SendLog, User
 from app.models.base import utcnow
 from app.services import usage
 from app.services.audit import audit
@@ -204,6 +204,58 @@ def send_applications(db: Session, user: User, app_ids: list[uuid.UUID], token: 
                 log.exception("send failed")
         results.append(res)
     return results
+
+
+def preview_followup(db: Session, user: User, draft_id: uuid.UUID) -> dict:
+    draft = db.get(FollowUpDraft, draft_id)
+    if not draft or draft.user_id != user.id:
+        raise SendBlocked("Follow-up not found.", "not_found")
+    app, job, em = _load(db, user, draft.application_id)
+    problems = []
+    if draft.status != "approved": problems.append("Approve the follow-up first.")
+    if draft.needs_input or not draft.body.strip(): problems.append("Complete the follow-up first.")
+    if app.status not in {"sent", "application_confirmed", "interview"}: problems.append("The application is not eligible for a follow-up.")
+    acct = db.get(EmailAccount, em.email_account_id) if em and em.email_account_id else None
+    if not acct or acct.status != "active": problems.append("Reconnect the sending email account.")
+    return {"follow_up_id": str(draft.id), "application_id": str(app.id), "company": job.company_name, "position": job.job_title,
+            "from": acct.address if acct else None, "to": draft.to_address, "subject": draft.subject, "body": draft.body,
+            "blocked": bool(problems), "problems": problems}
+
+
+def send_followup(db: Session, user: User, draft_id: uuid.UUID, request=None) -> dict:
+    s = get_settings()
+    draft = db.execute(select(FollowUpDraft).where(FollowUpDraft.id == draft_id, FollowUpDraft.user_id == user.id).with_for_update()).scalar_one_or_none()
+    if not draft: raise SendBlocked("Follow-up not found.", "not_found")
+    if draft.status == "sent": return {"follow_up_id": str(draft.id), "status": "skipped", "message": "Already sent."}
+    if draft.status != "approved": raise SendBlocked("Approve the follow-up before sending.")
+    app, job, em = _load(db, user, draft.application_id)
+    if app.status not in {"sent", "application_confirmed", "interview"}: raise SendBlocked("Application is not eligible for a follow-up.")
+    if _window_count(db, user.id, timedelta(hours=1)) >= s.email_send_per_hour or _window_count(db, user.id, timedelta(days=1)) >= s.email_send_per_day:
+        raise SendBlocked("Sending limit reached. Try again later.", "rate_limited")
+    usage.check_quota(db, user, "emails_sent", 1)
+    acct = db.get(EmailAccount, em.email_account_id) if em else None
+    if not acct or acct.status != "active": raise SendBlocked("Your email account needs to be reconnected.")
+    idem = hashlib.sha256(f"followup:{draft.id}:{draft.content_hash}".encode()).hexdigest()
+    if db.scalar(select(FollowUpDraft.id).where(FollowUpDraft.idempotency_key == idem)):
+        return {"follow_up_id": str(draft.id), "status": "skipped", "message": "Already sent."}
+    draft.idempotency_key = idem
+    db.commit()
+    try:
+        creds = json.loads(decrypt_str(acct.encrypted_credentials))
+        mid = _send_with_retry(get_channel(acct.provider), creds, OutgoingEmail(from_address=acct.address, from_name=acct.display_name,
+                     to=draft.to_address, subject=draft.subject, body=draft.body, attachments=[]))
+    except DeliveryError as de:
+        draft.idempotency_key = None
+        if de.needs_reauth: acct.status = "needs_reauth"
+        db.add(SendLog(user_id=user.id, application_id=app.id, provider=acct.provider, recipient=draft.to_address, success=False, error=de.reason[:500]))
+        db.commit()
+        return {"follow_up_id": str(draft.id), "status": "failed", "message": de.reason}
+    draft.status, draft.sent_at, draft.provider_message_id = "sent", utcnow(), mid
+    db.add(SendLog(user_id=user.id, application_id=app.id, provider=acct.provider, recipient=draft.to_address, success=True))
+    usage.record_usage(db, user.id, "emails_sent", 1, application_id=str(app.id))
+    audit(db, user.id, "follow_up.sent", entity_type="application", entity_id=app.id, provider=acct.provider, request=request)
+    db.commit()
+    return {"follow_up_id": str(draft.id), "status": "sent", "message": "Sent."}
 
 
 def mark_applied_manually(db: Session, user: User, app: Application) -> Application:

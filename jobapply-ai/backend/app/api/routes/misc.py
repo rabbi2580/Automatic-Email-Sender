@@ -12,7 +12,7 @@ from app.core.db import get_db
 from app.core.deps import get_current_user
 from app.core.security import verify_password
 from app.models import (
-    Application, ApplicationEmail, ApplicationEvent, AuditLog, CoverLetter, EmailAccount, Job, JobMatch, Notification, Profile, Resume, ResumeVersion, SendLog, User,
+    Application, ApplicationEmail, ApplicationEvent, AuditLog, CoverLetter, EmailAccount, FollowUpDraft, FollowUpRule, IncomingMessage, Job, JobMatch, Notification, Profile, Resume, ResumeVersion, SendLog, User,
 )
 from app.models.base import utcnow
 from app.schemas.api import DeleteAccountIn, SettingsIn, TrainingOptIn
@@ -113,6 +113,14 @@ def export_data(request: Request, user: User = Depends(get_current_user), db: Se
                               db.scalar(select(ApplicationEmail).where(ApplicationEmail.application_id == a.id)))} for a in apps],
         "tailored_cvs": [{"id": str(v.id), "label": v.label, "content": v.content} for v in db.scalars(select(ResumeVersion).where(ResumeVersion.user_id == user.id))],
         "email_accounts": [{"provider": a.provider, "address": a.address, "status": a.status} for a in db.scalars(select(EmailAccount).where(EmailAccount.user_id == user.id, EmailAccount.deleted_at.is_(None)))],
+        "incoming_messages": [{"id": str(m.id), "application_id": str(m.application_id) if m.application_id else None, "provider": m.provider, "from": m.from_address,
+                               "subject": m.subject, "snippet": m.snippet, "classification": m.classification, "received_at": m.received_at.isoformat() if m.received_at else None}
+                              for m in db.scalars(select(IncomingMessage).where(IncomingMessage.user_id == user.id))],
+        "follow_up_rules": [{"default_wait_days": r.default_wait_days, "max_followups": r.max_followups, "stop_on_reply": r.stop_on_reply, "enabled": r.enabled}
+                             for r in db.scalars(select(FollowUpRule).where(FollowUpRule.user_id == user.id))],
+        "follow_up_drafts": [{"id": str(d.id), "application_id": str(d.application_id), "sequence": d.sequence, "status": d.status, "to": d.to_address,
+                              "subject": d.subject, "body": d.body, "due_at": d.due_at.isoformat() if d.due_at else None}
+                             for d in db.scalars(select(FollowUpDraft).where(FollowUpDraft.user_id == user.id))],
         "send_log": [{"recipient": s.recipient, "success": s.success, "at": s.created_at.isoformat()} for s in db.scalars(select(SendLog).where(SendLog.user_id == user.id))],
         "audit_log": [{"action": a.action, "at": a.created_at.isoformat()} for a in db.scalars(select(AuditLog).where(AuditLog.user_id == user.id).order_by(AuditLog.created_at))],
     }
@@ -147,6 +155,12 @@ def delete_history(request: Request, user: User = Depends(get_current_user), db:
         db.delete(v)
     for s in db.scalars(select(SendLog).where(SendLog.user_id == user.id)):
         db.delete(s)
+    for m in db.scalars(select(IncomingMessage).where(IncomingMessage.user_id == user.id)):
+        db.delete(m)
+    for d in db.scalars(select(FollowUpDraft).where(FollowUpDraft.user_id == user.id)):
+        db.delete(d)
+    for r in db.scalars(select(FollowUpRule).where(FollowUpRule.user_id == user.id)):
+        db.delete(r)
     audit(db, user.id, "privacy.delete_history", request=request)
     db.commit()
 

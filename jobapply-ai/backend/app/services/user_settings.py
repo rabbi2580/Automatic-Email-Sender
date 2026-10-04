@@ -16,6 +16,7 @@ DEFAULT_SETTINGS = {
     "attach_docx": False,
     "auto_generate_for": ["strong", "potential"],
     "reminder_days_before_deadline": 3,
+    "mailbox_tracking": False,
 }
 
 

@@ -10,6 +10,7 @@ function Inner() {
   const sp = useSearchParams();
   const { data, error, loading, reload } = useLoad(() => api<any[]>("/integrations/email"));
   const [consent, setConsent] = useState(false);
+  const [tracking, setTracking] = useState(false);
   const [smtp, setSmtp] = useState<any>({ address: "", display_name: "", host: "", port: 587, username: "", password: "", security: "starttls" });
   const [showSmtp, setShowSmtp] = useState(false);
   useEffect(() => {
@@ -18,7 +19,7 @@ function Inner() {
   }, [sp, toast]);
 
   async function connect(provider: "gmail" | "outlook") {
-    try { const r = await api<any>("/integrations/email/connect", { body: { provider, consent } }); location.href = r.authorization_url; } catch (e) { toast((e as Error).message, "err"); }
+    try { const r = await api<any>("/integrations/email/connect", { body: { provider, consent, tracking } }); location.href = r.authorization_url; } catch (e) { toast((e as Error).message, "err"); }
   }
   async function saveSmtp(e: React.FormEvent) {
     e.preventDefault();
@@ -32,8 +33,9 @@ function Inner() {
       <Card title="Connect an account">
         <div className="space-y-3">
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />I allow JobApply AI to send emails from my account on my behalf, <b>only after I approve and confirm each application</b>. I can disconnect at any time.</label>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={tracking} onChange={(e) => setTracking(e.target.checked)} />Enable optional reply tracking. We read only metadata from messages matching your application recipients and store a short classified snippet.</label>
           <div className="flex flex-wrap gap-2"><Button disabled={!consent} onClick={() => connect("gmail")}>Connect Gmail</Button><Button disabled={!consent} variant="secondary" onClick={() => connect("outlook")}>Connect Outlook</Button><Button disabled={!consent} variant="secondary" onClick={() => setShowSmtp(!showSmtp)}>Use SMTP</Button></div>
-          <p className="text-xs text-slate-500">Gmail and Outlook use the minimum “send” permission only; we cannot read your inbox. Tokens and SMTP passwords are encrypted at rest.</p>
+          <p className="text-xs text-slate-500">Sending uses minimum permission. Reply tracking is opt-in and requests a separate read-only permission; tokens and SMTP passwords are encrypted at rest.</p>
           {showSmtp && <form onSubmit={saveSmtp} className="grid gap-3 rounded-md border p-3 md:grid-cols-2">
             <Field label="Email address"><input className="input" type="email" required value={smtp.address} onChange={(e) => setSmtp({ ...smtp, address: e.target.value })} /></Field>
             <Field label="Display name"><input className="input" value={smtp.display_name} onChange={(e) => setSmtp({ ...smtp, display_name: e.target.value })} /></Field>
@@ -50,7 +52,7 @@ function Inner() {
         {loading ? <Spinner /> : error ? <ErrorBox error={error} onRetry={reload} /> : !data?.length ? <Empty title="No email account connected">You need one to send applications by email.</Empty> :
           <ul className="divide-y">{data.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-              <div><b>{a.address}</b> <span className="text-slate-500">· {a.provider}</span><div className="text-xs text-slate-500">{a.last_used_at ? `Last used ${new Date(a.last_used_at).toLocaleDateString()}` : "Never used"}</div></div>
+              <div><b>{a.address}</b> <span className="text-slate-500">· {a.provider}</span><div className="text-xs text-slate-500">{a.tracking_enabled ? "Reply tracking on" : "Reply tracking off"} · {a.last_used_at ? `Last used ${new Date(a.last_used_at).toLocaleDateString()}` : "Never used"}</div></div>
               <div className="flex items-center gap-2">{a.is_default && <Badge tone="blue">Default</Badge>}<Badge tone={a.status === "active" ? "green" : "red"}>{a.status === "needs_reauth" ? "Reconnect needed" : pretty(a.status)}</Badge>
                 {!a.is_default && <Button variant="secondary" onClick={() => makeDefault(a.id)}>Make default</Button>}<Button variant="ghost" onClick={() => remove(a.id)}>Disconnect</Button></div>
             </li>))}</ul>}

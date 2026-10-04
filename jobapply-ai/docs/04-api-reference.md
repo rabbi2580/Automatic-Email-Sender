@@ -155,3 +155,10 @@ Key flows: `POST /auth/register` → `POST /auth/login` → `POST /resumes/uploa
 | method | path | handler |
 |---|---|---|
 | GET | `/api/v1/usage` | My Usage |
+### Mailbox tracking and follow-ups
+
+- `POST /integrations/email/connect` accepts `tracking: true` to request opt-in read-only tracking.
+- `GET /applications/{id}/incoming` returns tenant-owned incoming metadata only.
+- `POST /applications/{id}/undo-auto-update` reverses the latest automatic status change when it is still current.
+- `GET|PUT /follow-ups/settings` manages wait days, maximum follow-ups, and stop-on-reply behavior.
+- `POST /follow-ups/from-application/{id}` creates a grounded draft; `PATCH /follow-ups/{id}` edits it; `POST /follow-ups/{id}/approve` approves it; `POST /follow-ups/{id}/send/preview` and `/send` provide the final review/send gate.

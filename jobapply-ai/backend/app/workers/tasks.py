@@ -6,7 +6,7 @@ import uuid
 
 from app.core.db import SessionLocal
 from app.models import Application, Job, Resume, User
-from app.services import pipeline
+from app.services import mail_tracking, pipeline
 
 log = logging.getLogger("jobapply.tasks")
 
@@ -51,4 +51,9 @@ def task_generate_application(user_id: str, job_id: str, tone: str | None, langu
                 db.commit()
 
 
-TASKS = {"process_resume": task_process_resume, "process_job": task_process_job, "generate_application": task_generate_application}
+def task_poll_mailboxes() -> None:
+    with SessionLocal() as db:
+        mail_tracking.poll_mailboxes(db)
+
+
+TASKS = {"process_resume": task_process_resume, "process_job": task_process_job, "generate_application": task_generate_application, "poll_mailboxes": task_poll_mailboxes}

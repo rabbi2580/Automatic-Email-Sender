@@ -75,6 +75,9 @@ class EmailAccount(Base, UUIDPk, Timestamps, SoftDelete):
     consent_given_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    tracking_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_tracking_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tracking_error: Mapped[str | None] = mapped_column(String(500))
     __table_args__ = (UniqueConstraint("user_id", "provider", "address", name="uq_email_account"),)
 
 
@@ -117,6 +120,53 @@ class ApplicationEvent(Base, UUIDPk):
     to_status: Mapped[str | None] = mapped_column(String(30))
     detail: Mapped[dict] = mapped_column(JSONType, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class IncomingMessage(Base, UUIDPk):
+    """Metadata-only mailbox event. Message bodies and unrelated mail are never stored."""
+    __tablename__ = "incoming_messages"
+    user_id: Mapped[uuid.UUID] = owner_fk()
+    email_account_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("email_accounts.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("applications.id", ondelete="SET NULL"), index=True)
+    provider: Mapped[str] = mapped_column(String(20))
+    external_id: Mapped[str] = mapped_column(String(300))
+    thread_id: Mapped[str] = mapped_column(String(300), default="")
+    from_address: Mapped[str] = mapped_column(String(320), default="")
+    subject: Mapped[str] = mapped_column(String(500), default="")
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    classification: Mapped[str] = mapped_column(String(30), default="reply")
+    snippet: Mapped[str] = mapped_column(Text, default="")
+    auto_updated: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    __table_args__ = (UniqueConstraint("user_id", "provider", "external_id", name="uq_incoming_user_provider_external"),)
+
+
+class FollowUpRule(Base, UUIDPk, Timestamps):
+    __tablename__ = "follow_up_rules"
+    user_id: Mapped[uuid.UUID] = owner_fk()
+    default_wait_days: Mapped[int] = mapped_column(Integer, default=7)
+    max_followups: Mapped[int] = mapped_column(Integer, default=2)
+    stop_on_reply: Mapped[bool] = mapped_column(Boolean, default=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    __table_args__ = (UniqueConstraint("user_id", name="uq_follow_up_rule_user"),)
+
+
+class FollowUpDraft(Base, UUIDPk, Timestamps):
+    __tablename__ = "follow_up_drafts"
+    user_id: Mapped[uuid.UUID] = owner_fk()
+    application_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    sequence: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft|approved|sent|cancelled
+    to_address: Mapped[str] = mapped_column(String(320), default="")
+    subject: Mapped[str] = mapped_column(String(500), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    content_hash: Mapped[str] = mapped_column(String(64), default="")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provider_message_id: Mapped[str | None] = mapped_column(String(300))
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), unique=True)
+    needs_input: Mapped[bool] = mapped_column(Boolean, default=False)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class SendLog(Base, UUIDPk):

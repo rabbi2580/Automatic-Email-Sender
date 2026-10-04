@@ -32,3 +32,4 @@ Assets: CV/personal data, OAuth tokens & SMTP passwords (can send mail as the us
 
 ## Reporting
 Publish a `security@` address and a disclosure policy before launch.
+Mailbox tracking uses a separate read-only OAuth scope and is disabled by default. Every tracking query is constrained to addresses used by the user’s sent applications, and all stored records carry the owning user id. Follow-up sending still requires an explicit user-authored approval and the existing delivery safeguards.
