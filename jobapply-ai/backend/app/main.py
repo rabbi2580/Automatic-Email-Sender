@@ -42,7 +42,10 @@ def create_app() -> FastAPI:
             log.warning("SENTRY_DSN is configured but sentry-sdk is not installed")
     app = FastAPI(title=s.app_name, version=__version__, lifespan=lifespan, docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json",
                   description="AI job-application assistant. All endpoints (except auth and signed file downloads) require a Bearer token and are tenant-isolated.")
-    app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in s.cors_origins.split(",") if o.strip()], allow_credentials=False,
+    cors_origins = [o.strip() for o in s.cors_origins.split(",") if o.strip()]
+    if s.environment in ("development", "test"):
+        cors_origins = sorted(set(cors_origins + ["http://localhost:3000", "http://127.0.0.1:3000"]))
+    app.add_middleware(CORSMiddleware, allow_origins=cors_origins, allow_credentials=False,
                        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["Authorization", "Content-Type"], max_age=600)
 
     @app.middleware("http")

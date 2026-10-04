@@ -1,7 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@config "../../tailwind.config.ts";
+@import "tailwindcss";
 :root { --canvas:#f7f9fc; --paper:#fff; --ink:#12213a; --muted:#64748b; --line:#e2e8f0; --brand:#4f46e5; --brand-strong:#3730a3; --brand-soft:#eef2ff; --accent:#06b6d4; --success:#059669; --danger:#dc2626; --radius:16px; }
 @media (prefers-color-scheme: dark) { :root { --canvas:#0b1220; --paper:#111b2e; --ink:#e5edf9; --muted:#94a3b8; --line:#26354d; --brand-soft:#1e1b4b; } }
 * { box-sizing:border-box; } html { scroll-behavior:smooth; }

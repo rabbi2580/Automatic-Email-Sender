@@ -1,5 +1,9 @@
 // Thin API client: attaches the access token, refreshes it once on 401, surfaces readable errors.
-export const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const configuredApi = process.env.NEXT_PUBLIC_API_URL;
+const browserApi = typeof window !== "undefined"
+  ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
+  : "http://localhost:8000/api/v1";
+export const API = configuredApi || browserApi;
 
 const ACCESS = "jaa_access";
 const REFRESH = "jaa_refresh";
@@ -51,14 +55,19 @@ async function refresh(): Promise<boolean> {
 }
 
 export async function api<T = any>(path: string, opts: { method?: string; body?: unknown; form?: FormData; auth?: boolean } = {}): Promise<T> {
-  const doFetch = () => {
+  const doFetch = async () => {
     const headers: Record<string, string> = {};
     const at = store.get(ACCESS);
     if (opts.auth !== false && at) headers.Authorization = `Bearer ${at}`;
     let body: BodyInit | undefined;
     if (opts.form) body = opts.form;
     else if (opts.body !== undefined) { headers["Content-Type"] = "application/json"; body = JSON.stringify(opts.body); }
-    return fetch(`${API}${path}`, { method: opts.method || (body ? "POST" : "GET"), headers, body });
+    try {
+      return await fetch(`${API}${path}`, { method: opts.method || (body ? "POST" : "GET"), headers, body });
+    } catch (error) {
+      const host = API.replace(/\/api\/v1$/, "");
+      throw new Error(`Cannot reach the API at ${host}. Start the backend and check CORS/API URL.`);
+    }
   };
   let res = await doFetch();
   if (res.status === 401 && opts.auth !== false && (await refresh())) res = await doFetch();
