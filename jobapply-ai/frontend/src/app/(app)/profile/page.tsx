@@ -44,6 +44,17 @@ export default function Profile() {
   const set = (k: string, v: any) => { setP({ ...p, [k]: v }); setDirty(true); };
   const setItem = (key: string, i: number, patch: any) => set(key, p[key].map((x: any, j: number) => (j === i ? { ...x, ...patch } : x)));
   const rm = (key: string, i: number) => set(key, p[key].filter((_: any, j: number) => j !== i));
+  const listEditor = (title: string, key: string, label: string, placeholder: string) => (
+    <Card title={title} actions={<Button variant="secondary" onClick={() => set(key, [...(p[key] || []), ""])}>Add</Button>}>
+      <div className="space-y-2">
+        {(p[key] || []).map((value: string, i: number) => <div key={i} className="flex gap-2">
+          <Field label={`${label} ${i + 1}`}><input className="input" placeholder={placeholder} value={value || ""} onChange={(e) => set(key, (p[key] || []).map((x: string, j: number) => j === i ? e.target.value : x))} /></Field>
+          <div className="flex items-end pb-0.5"><Button variant="ghost" aria-label={`Remove ${label} ${i + 1}`} onClick={() => rm(key, i)}>Remove</Button></div>
+        </div>)}
+        {!(p[key] || []).length && <p className="text-sm text-slate-500">No entries yet. Click Add to enter one.</p>}
+      </div>
+    </Card>
+  );
 
   async function save() {
     setSaving(true);
@@ -164,25 +175,17 @@ export default function Profile() {
           </div>))}
       </Card>
 
-      <Card title="Achievements / Awards">
-        <Field label="One item per line"><textarea className="input" rows={3} value={lines(p.achievements)} onChange={(e) => set("achievements", unLines(e.target.value))} /></Field>
-      </Card>
+      {listEditor("Achievements / Awards", "achievements", "Achievement", "e.g. Dean's List, 2024")}
 
-      <Card title="Extracurricular Activities">
-        <Field label="One activity per line"><textarea className="input" rows={3} value={lines(p.extracurriculars)} onChange={(e) => set("extracurriculars", unLines(e.target.value))} /></Field>
-      </Card>
+      {listEditor("Extracurricular Activities", "extracurriculars", "Activity", "e.g. Robotics Club President")}
 
       <Card title="Languages">
         <Field label="Comma separated"><input className="input" value={csv(p.languages)} onChange={(e) => set("languages", unCsv(e.target.value))} /></Field>
       </Card>
 
-      <Card title="Strengths & Interests">
-        <Field label="One item per line"><textarea className="input" rows={3} value={lines(p.strengths)} onChange={(e) => set("strengths", unLines(e.target.value))} /></Field>
-      </Card>
+      {listEditor("Strengths & Interests", "strengths", "Strength or interest", "e.g. Public speaking")}
 
-      <Card title="References">
-        <Field label="One reference per line"><textarea className="input" rows={3} value={lines(p.references)} onChange={(e) => set("references", unLines(e.target.value))} /></Field>
-      </Card>
+      {listEditor("References", "references", "Reference", "Name · role · organization · contact")}
 
       <div className="text-right"><Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button></div>
     </div>

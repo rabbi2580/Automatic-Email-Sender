@@ -21,7 +21,10 @@ log = logging.getLogger("jobapply.http")
 async def lifespan(app: FastAPI):
     s = get_settings()
     setup_logging(s.debug)
-    if s.environment in ("development", "test"):
+    # Tests intentionally create an isolated schema. Development and
+    # production use Alembic so startup never silently creates a schema that
+    # disagrees with the migration history.
+    if s.environment == "test":
         import app.models  # noqa: F401
 
         Base.metadata.create_all(engine)  # production uses Alembic migrations
@@ -62,6 +65,10 @@ def create_app() -> FastAPI:
             "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
             "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" if not request.url.path.startswith(("/docs", "/redoc")) else "default-src 'self' 'unsafe-inline' cdn.jsdelivr.net data:",
         })
+        # Chrome's Private Network Access preflight is triggered when a local
+        # frontend uses localhost while the API URL uses 127.0.0.1.
+        if s.environment in ("development", "test") and request.headers.get("access-control-request-private-network") == "true":
+            resp.headers["Access-Control-Allow-Private-Network"] = "true"
         if request.url.path.startswith(("/api/", "/admin/")):
             resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
         if s.is_production():

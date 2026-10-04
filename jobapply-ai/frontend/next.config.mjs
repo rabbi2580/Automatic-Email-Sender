@@ -9,6 +9,9 @@ const securityHeaders = [
 const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  async rewrites() {
+    return [{ source: "/api/backend/:path*", destination: "http://127.0.0.1:8000/api/v1/:path*" }];
+  },
   async headers() { return [
     { source: "/(.*)", headers: securityHeaders },
     { source: "/(app)(.*)", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }] },
