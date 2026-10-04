@@ -50,7 +50,7 @@ TEST_DATABASE_URL=postgresql+psycopg2://user:pw@localhost/db python -m pytest -q
 cd frontend && npm run lint && npm run build
 ```
 
-About 150 tests cover parsing, matching, generation, QC, AI-service safety, auth, tenant isolation, send safeguards, privacy, input safety, job intake and the full upload → 20 jobs → match → generate → approve → send → track flow.
+163 automated tests cover parsing, matching, generation, QC, AI-service safety, auth, tenant isolation, send safeguards, privacy, input safety, job intake and the full upload → 20 jobs → match → generate → approve → send → track flow.
 
 ## Documentation
 
@@ -58,7 +58,7 @@ About 150 tests cover parsing, matching, generation, QC, AI-service safety, auth
 |---|---|
 | [01 Requirements & risks](docs/01-requirements-and-risks.md) | Requirements, ambiguities + decisions, risks, MVP scope |
 | [02 Architecture](docs/02-architecture.md) | Diagram, modules, lifecycle, tenancy |
-| [03 Database schema](docs/03-database-schema.md) | All 30 tables |
+| [03 Database schema](docs/03-database-schema.md) | All 37 tables |
 | [04 API reference](docs/04-api-reference.md) | Endpoint map (full OpenAPI at `/docs`) |
 | [05 Setup & deployment](docs/05-setup-and-deployment.md) | Env vars, OAuth setup, Docker, production notes |
 | [06 AI architecture](docs/06-ai-architecture.md) | Agents, routing, caching, safety, matching formula |

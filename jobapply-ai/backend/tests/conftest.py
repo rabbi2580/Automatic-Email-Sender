@@ -3,7 +3,7 @@ import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="jobapply-test-")
 os.environ.update({
-    "ENVIRONMENT": "test", "DATABASE_URL": os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{_tmp}/test.db", "STORAGE_LOCAL_PATH": f"{_tmp}/storage", "TASK_MODE": "inline",
+    "ENVIRONMENT": "test", "DEBUG": "false", "DATABASE_URL": os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{_tmp}/test.db", "STORAGE_LOCAL_PATH": f"{_tmp}/storage", "TASK_MODE": "inline",
     "AI_PROVIDER": "heuristic", "SECRET_KEY": "test-secret-key-test-secret-key-test-secret-key", "REQUIRE_VERIFIED_EMAIL_TO_SEND": "true",
     "API_BASE_URL": "http://testserver", "PUBLIC_BASE_URL": "http://localhost:3000",
 })
